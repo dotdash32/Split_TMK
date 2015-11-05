@@ -99,6 +99,7 @@ uint8_t _matrix_scan(void)
     for (uint8_t i = 0; i < ROWS_PER_HAND; i++) {
         select_row(i);
         _delay_us(30);  // without this wait read unstable value.
+        /* asm volatile("nop" ::); */
         matrix_row_t cols = read_cols();
         if (matrix_debouncing[i+offset] != cols) {
             matrix_debouncing[i+offset] = cols;
