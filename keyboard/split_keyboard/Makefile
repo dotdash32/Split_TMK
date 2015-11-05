@@ -48,11 +48,19 @@ TMK_DIR = ../../tmk_core
 TARGET_DIR = .
 
 # project specific files
-SRC =	matrix.c \
-	i2c.c \
-	serial.c \
+SRC =	\
+	led.c \
+	matrix-wireless.c \
 	split-util.c \
-	led.c
+	wired/i2c.c \
+	wired/serial.c \
+	wireless/crypto.c \
+	wireless/nrf.c \
+	wireless/aes/aes_dec-asm.S \
+	wireless/aes/aes_invsbox-asm.S \
+	wireless/aes/aes_keyschedule-asm.S \
+	wireless/aes/aes_sbox-asm.S \
+
 
 CONFIG_H = config.h
 
@@ -121,7 +129,7 @@ MOUSEKEY_ENABLE = yes	# Mouse keys(+4700)
 EXTRAKEY_ENABLE = yes	# Audio control and System control(+450)
 CONSOLE_ENABLE = yes	# Console for debug(+400)
 COMMAND_ENABLE = yes    # Commands for debug and configuration
-SLEEP_LED_ENABLE = yes  # Breathing sleep LED during USB suspend
+# SLEEP_LED_ENABLE = yes  # Breathing sleep LED during USB suspend
 NKRO_ENABLE = yes	# USB Nkey Rollover
 ACTIONMAP_ENABLE = yes	# Use 16bit action codes in keymap instead of 8bit keycodes
 

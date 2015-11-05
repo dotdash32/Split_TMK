@@ -4,10 +4,11 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 #include <avr/eeprom.h>
-#include "split-util.h"
-#include "matrix.h"
-#include "serial.h"
 #include "keyboard.h"
+#include "matrix.h"
+#include "split-util.h"
+#include "wired/i2c.h"
+#include "wired/serial.h"
 
 volatile bool isLeftHand = true;
 

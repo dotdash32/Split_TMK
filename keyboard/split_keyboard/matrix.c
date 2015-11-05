@@ -28,8 +28,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "debug.h"
 #include "util.h"
 #include "matrix.h"
-#include "i2c.h"
-#include "serial.h"
+#include "wired/i2c.h"
+#include "wired/serial.h"
 #include "split-util.h"
 #include "pro-micro.h"
 
@@ -72,6 +72,44 @@ void matrix_setup(void) {
         keyboard_slave_loop();
     }
 }
+
+#ifdef WIRELESS
+static aes_ctx_t aes_ctx;
+static aes_state_t aes_state[2] = { 0 };
+static aes_key_t aes_key;
+
+void setup_reciever(void) {
+  power_spi_enable();
+  spi_setup();
+  nrf_setup(isLeftHand);
+}
+
+uint8_t calc_checksum(uint8_t *buf, uint8_t len) {
+  uint8_t result = 0;
+  for (int i = 0; i < len; ++i) {
+    result += buf[i];
+  }
+  return result;
+}
+
+uint8_t recv_update(aes_state_t *state, aes_ctx_t *ctx) {
+  int pipe_num = nrf_rx_pipe_number();
+  if( pipe_num < NUM_SLAVES ) {
+    nrf_read_rx_fifo(aes_state[pipe_num].data, RF_BUFFER_LEN);
+    decrypt(&aes_state[pipe_num], &aes_ctx);
+    uint8_t ccsum = calc_checksum(aes_state[pipe_num].data, MATRIX_ROWS);
+    if (aes_state[pipe_num].data[MATRIX_ROWS] != ccsum) {
+      stats.bad++;
+    }
+    pipe_num = nrf_rx_pipe_number();
+    num_packets++;
+  }
+  if (num_packets == 0) {
+    stats.miss++;
+  }
+  return num_packets;
+}
+#endif
 
 void matrix_init(void)
 {

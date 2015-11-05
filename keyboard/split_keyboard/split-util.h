@@ -2,11 +2,9 @@
 #define SPLIT_KEYBOARD_UTIL_H
 
 #include <stdbool.h>
+#include "split-config.h"
 
-#define EECONFIG_BOOTMAGIC_END      (uint8_t *)7
-#define EECONFIG_HANDEDNESS         EECONFIG_BOOTMAGIC_END
-
-#define SLAVE_I2C_ADDRESS           0x32
+#define NUM_SLAVES 2
 
 extern volatile bool isLeftHand;
 
