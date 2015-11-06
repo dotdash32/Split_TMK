@@ -121,6 +121,9 @@ OPT_DEFS += -DSPACE_ON_LEFT_HALF
 # # Use I2C for communication between the halves of the keyboard
 # OPT_DEFS += -DUSE_I2C
 
+OPT_DEFS += -DUSE_AUTO_ACK -DMASTER_DEVICE
+OPT_DEFS += -DPRINT_STATS
+
 # Build Options
 #   comment out to disable the options.
 #

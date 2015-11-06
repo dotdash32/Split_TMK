@@ -1,7 +1,3 @@
-/* #ifdef DEBUG */
-/*   #include <Arduino.h> */
-/* #endif */
-/* #include <Arduino.h> */
 #include "nrf.h"
 #include "nRF24L01.h"
 #include <avr/io.h>
@@ -46,14 +42,13 @@ void spi_setup(void) {
 #endif
   ddr_csn(1);
   ddr_ce(1);
-  DDRB |= (1<<MOSI)|(1<<SCK);
-  DDRB &= ~(0<<MISO);
+  DDRB |= (0<<MISO)|(1<<MOSI)|(1<<SCK);
   csn(1);
   ce(0);
 
   // nrf supports 10Mbs on spi
-  // setup spi with: clk/2, msb, mode0
   /* SPCR = (1<<SPI2X) | (1<<SPE) | (1<<MSTR); */
+  // setup spi with: clk/4, msb, mode0
   SPCR = (1<<SPE) | (1<<MSTR);
 }
 
@@ -101,22 +96,35 @@ uint8_t spi_command(uint8_t command) {
   return status;
 }
 
-void nrf_setup(bool isLeftHand) {
+void nrf_power_set(bool on) {
+#if MASTER_DEVICE
+  write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (1<<PRIM_RX));
+#else // slave
+  write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (0<<PRIM_RX));
+#endif
+}
+
+void nrf_setup(uint8_t device_num) {
   /* TODO: move to program memory */
+  /* TODO: add configuration */
   uint8_t slave_addr[2][RF_BUFFER_LEN] = { { 0x0f, 0xb3, 0x47, 0x17, 0x1c },
                                            { 0xd7, 0x1c, 0xca, 0x3b, 0x8a } };
   uint8_t features = 0;
 
-  write_reg(CONFIG, (0<<PWR_UP));
+  nrf_power_set(0);
 
-#if USE_AUTO_ACK && !IS_MASTER_DEVICE
+#ifdef USE_AUTO_ACK
+  #if MASTER_DEVICE
+    write_reg(SETUP_RETR, 0);
+    write_reg(EN_AA, (1<<ENAA_P0) | (1<<ENAA_P1)); // enable auto ack, on P0,P1
+  #else // slave, with auto ack
     // ARD: delay for packet resend
     // ARC: max auto retransmit attempts
     /* NOTE: Most dropped packets occur when both slaves transmit at the same
      * time. Using auto retransmit, when need to make sure that we send the
      * replacement packets at different times, or otherwise we will keep having
      * an on-air collision every time we try to retransmit. */
-    if (isLeftHand) { // delay is: (ARD+1)*250μs
+    if (device_num) { // delay is: (ARD+1)*250μs
       // 250 μs delay
       write_reg(SETUP_RETR, (0<<ARD) | (MAX_RETRANSMIT<<ARC));
     } else { // use large offset to avoid future collisions
@@ -124,15 +132,12 @@ void nrf_setup(bool isLeftHand) {
       write_reg(SETUP_RETR, (10<<ARD) | (MAX_RETRANSMIT<<ARC));
     }
     write_reg(EN_AA, (1<<ENAA_P0)); // enable auto ack, on P0
-#elif USE_AUTO_ACK && IS_MASTER_DEVICE
-    write_reg(SETUP_RETR, 0);
-    write_reg(EN_AA, (1<<ENAA_P0) | (1<<ENAA_P1)); // enable auto ack, on P0,P1
-#else
+  #endif
+#else // no auto ack
     write_reg(EN_AA, 0); // disable auto ack
     write_reg(SETUP_RETR, 0); // no auto retransmit
     features |= (1<<EN_DYN_ACK);
 #endif
-
 
   write_reg(RF_CH, 0x02); // default rf channel
   // 2Mbps @ -18dBm
@@ -148,7 +153,7 @@ void nrf_setup(bool isLeftHand) {
 
   write_reg(NRF_STATUS, 0xff);
 
-#if IS_MASTER_DEVICE==1
+#if MASTER_DEVICE
   uint8_t zero_addr[RF_BUFFER_LEN] = { 0 }; // debug
   write_reg(EN_RXADDR, (1<<ERX_P0) | (1<<ERX_P1)); // enable rx pipes: P0, P1
   // set rx pipe addresses
@@ -158,12 +163,12 @@ void nrf_setup(bool isLeftHand) {
   write_reg(RX_PW_P0, RF_BUFFER_LEN);
   write_reg(RX_PW_P1, RF_BUFFER_LEN);
   write_buf(TX_ADDR, zero_addr, RF_ADDRESS_LEN);
-#else
+#else // slave
   // set slave rx addr to its tx address for auto ack
   write_reg(EN_RXADDR, (1<<ERX_P0)); // enable rx pipes: P0, P1
   write_reg(RX_PW_P0, 0);
-  write_buf(RX_ADDR_P0, slave_addr[isLeftHand], RF_ADDRESS_LEN);
-  write_buf(TX_ADDR, slave_addr[isLeftHand], RF_ADDRESS_LEN);
+  write_buf(RX_ADDR_P0, slave_addr[device_num], RF_ADDRESS_LEN);
+  write_buf(TX_ADDR, slave_addr[device_num], RF_ADDRESS_LEN);
 #endif
 
   // misc features
@@ -174,21 +179,16 @@ void nrf_setup(bool isLeftHand) {
   spi_command(FLUSH_RX);
   spi_command(FLUSH_TX);
 
-#if IS_MASTER_DEVICE==1
-  write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (1<<PWR_UP) | (1<<PRIM_RX));
-#else
-  write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (1<<PWR_UP));
-#endif
+  nrf_power_set(1);
   /* NOTE: need to wait for the oscillator connected to then nrf24 to start up
    * before we can send data */
-  /* _delay_us(1); */
-  _delay_us(10);
+  _delay_us(100);
 }
 
 uint8_t nrf_load_tx_fifo(uint8_t *buf, uint8_t len) {
   uint8_t status;
   csn(0);
-#if USE_AUTO_ACK
+#ifdef USE_AUTO_ACK
     status = spi_transceive(W_TX_PAYLOAD);
 #else
     status = spi_transceive(W_TX_PAYLOAD_NO_ACK);
@@ -207,14 +207,14 @@ void nrf_clear_flags(void) {
 void nrf_send_one(void) {
   ce(1);
   /* TODO: fix for clock div */
-  _delay_us(1); // need to hold CE for at least 10μs
+  _delay_us(11); // need to hold CE for at least 10μs
   ce(0);
 }
 
 void nrf_send_all(void) {
   ce(1);
   /* TODO: fix for clock div */
-  _delay_us(1);
+  _delay_us(11);
   while( !(read_reg(FIFO_STATUS) & (1<<TX_EMPTY)) &&
          !(read_reg(NRF_STATUS) & (1<<MAX_RT)) );
   ce(0);

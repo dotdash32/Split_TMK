@@ -2,26 +2,25 @@
 #include <string.h>
 #include <avr/eeprom.h>
 #include "crypto.h"
-#include "split-config.h"
+#include "../split-config.h"
 
+// AES128-CBC refer to:
+// AES: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
+// CBC: https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_Block_Chaining_.28CBC.29
 
-void xor_buf(uint8_t *buf0, uint8_t *buf1, uint8_t len) {
-  for (int i = 0; i < len; ++i) {
-    buf0[i] ^= buf1[i];
-  }
-}
-
-void crypto_init(aes_state_t *state, aes_ctx_t *ctx, role_t role) {
-  aes_key_t key;
-  eeprom_read_block(key.key, EECONFIG_AES_KEY, AES_KEY_LEN);
+void crypto_init(aes_state_t *state, aes_ctx_t *ctx, uint8_t device_num) {
+  aes_key_t key = { 0 };
+  /* TODO: generate keys for both master and slave */
+  /* eeprom_read_block(key.key, EECONFIG_AES_KEY, AES_KEY_LEN); */
   aes128_init(key.key, ctx);
 
-  if (role == MASTER_DEVICE) {
-    return;
-  } else {
+#ifdef MASTER_DEVICE
+    // do nothing, the master receives iv from slave
+#else
     // AES should use an iv that is both unique and unpredictable.
-    // counter => uniqueness
-    // encrypt(counter) => uniqueness + unpredictability
+    // Here we use a counter and encryption to meet these requirements:
+    //   * counter => uniqueness
+    //   * encrypt(counter) => uniqueness + unpredictability
     //
     // The bitwise inverse of the counter is used in the other half to ensure
     // uniqueness for both halves.
@@ -29,15 +28,21 @@ void crypto_init(aes_state_t *state, aes_ctx_t *ctx, role_t role) {
     nonce_counter++;
     eeprom_update_dword(EECONFIG_NONCE_COUNTER, nonce_counter);
     // use different nonce for left and right hands
-    switch (role) {
-      case LEFT_DEVICE:  nonce_counter = nonce_counter; break;
-      case RIGHT_DEVICE: nonce_counter = !nonce_counter; break;
-      default: break; // should be unreachable
+    switch (device_num) {
+      case 0:  nonce_counter = nonce_counter; break;
+      case 1: nonce_counter = !nonce_counter; break;
+      default: break;
     }
     for (int i = 0; i < AES_BUF_LEN; i+=sizeof(uint32_t)) {
       memcpy(state->iv+i, (uint8_t*)nonce_counter, sizeof(uint32_t));
     }
     aes128_enc(state->iv, ctx);
+#endif
+}
+
+void xor_buf(uint8_t *buf0, uint8_t *buf1, uint8_t len) {
+  for (int i = 0; i < len; ++i) {
+    buf0[i] ^= buf1[i];
   }
 }
 

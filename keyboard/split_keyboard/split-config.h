@@ -9,14 +9,7 @@
 
 #define SLAVE_I2C_ADDRESS           0x32
 
-/* #define VERBOSE */
-/* #define DEBUG */
-
-#define USE_AUTO_ACK 1
-
 #define NUM_SLAVES 2
-#define IS_MASTER_DEVICE 1
-/* const bool isLeftHand = 0; */
 
 #endif /* end of include guard: EECONFIG_H_MKEYEMUZ */
 

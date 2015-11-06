@@ -2,8 +2,10 @@
 #include "debug.h"
 #include "matrix-wireless.h"
 #include "matrix.h"
-#include "split-util.h"
+#include "print.h"
 #include "pro-micro.h"
+#include "split-util.h"
+#include "timer.h"
 #include "wireless/crypto.h"
 #include "wireless/nrf.h"
 
@@ -12,22 +14,16 @@ static const int ROWS_PER_HAND = MATRIX_ROWS/2;
 /* matrix state(1:on, 0:off) */
 static matrix_row_t matrix[MATRIX_ROWS];
 
-struct Statistical {
-  uint32_t bad;
-  uint32_t good;
-  uint32_t total;
-  uint32_t miss;
-  uint32_t slaves[2];
+struct package_stats_t {
+  uint32_t idle;
+  uint32_t count[NUM_SLAVES];
+  uint32_t bad[NUM_SLAVES];
+  uint32_t rate[NUM_SLAVES];
 } stats = {0};
 
 static aes_ctx_t aes_ctx = { 0 };
 static aes_state_t aes_state[2] = { 0 };
 static aes_key_t aes_key = { 0 };
-
-static matrix_row_t read_cols(void);
-static void init_cols(void);
-static void unselect_rows(void);
-static void select_row(uint8_t row);
 
 inline
 uint8_t matrix_rows(void)
@@ -57,7 +53,7 @@ void matrix_setup(void) {
 void wireless_init(void) {
   power_spi_enable();
   spi_setup();
-  nrf_setup(isLeftHand);
+  nrf_setup(0);
   nrf_enable(true);
 }
 
@@ -86,14 +82,7 @@ uint8_t calc_checksum(uint8_t *buf, uint8_t len) {
 }
 
 void update_half(uint8_t *buf, bool device_num) {
-  uint8_t offset = 0;
-  switch (device_num) {
-    case 1: offset = 0; break;
-    case 0: offset = ROWS_PER_HAND; break;
-    default:
-      debug("invalid device number in update_half");
-      break;
-  }
+  uint8_t offset = device_num * ROWS_PER_HAND;
   for (int i = 0; i < ROWS_PER_HAND; ++i) {
     matrix[i+offset] = buf[i];
   }
@@ -108,52 +97,79 @@ void print_hex_buf(uint8_t* data, uint8_t len) {
    }
 }
 
+static uint32_t start_time = 0;
+static uint32_t seconds = 0;
+
 uint8_t matrix_scan(void)
 {
-  int num_packets = 0;
+  int num_processed = 0;
   int pipe_num = nrf_rx_pipe_number();
-  if( pipe_num < NUM_SLAVES ) {
+  while( pipe_num < NUM_SLAVES ) {
     nrf_read_rx_fifo(aes_state[pipe_num].data, RF_BUFFER_LEN);
 
-    /* print_hex_buf(aes_state[pipe_num].data, 16); */
+/* #ifdef DEBUG */
+/*     print_hex_buf(aes_state[pipe_num].data, 16); */
+/* #endif */
 
     decrypt(&aes_state[pipe_num], &aes_ctx);
 
-    /* print(" => "); */
-    /* print_hex_buf(aes_state[pipe_num].data, 16); */
-    /* print("\n"); */
+/* #ifdef DEBUG */
+/*     print(" => "); */
+/*     print_hex_buf(aes_state[pipe_num].data, 16); */
+/*     print("\n"); */
+/* #endif */
 
+    stats.count[pipe_num]++;
     uint8_t ccsum = calc_checksum(aes_state[pipe_num].data, ROWS_PER_HAND);
     if (aes_state[pipe_num].data[CHECK_SUM_POSITION] != ccsum) {
-      stats.bad++;
+      stats.bad[pipe_num]++;
     } else {
-      stats.good++;
       update_half(aes_state[pipe_num].data, pipe_num);
     }
+
+    num_processed++;
+
+    // check again
     pipe_num = nrf_rx_pipe_number();
-    num_packets++;
-    stats.slaves[pipe_num]++;
   }
-  if (num_packets == 0) {
-    stats.miss++;
-  } else {
-   /* print("total: "); */
-   /* print_dec(stats.total); */
-   /* print(" bad: "); */
-   /* print_dec(stats.bad); */
-   /* print(" miss: "); */
-   /* print_dec(stats.miss); */
-   /* print(" good: "); */
-   /* print_dec(stats.good); */
-   /* print(" left: "); */
-   /* print_dec(stats.slaves[0]); */
-   /* print(" right: "); */
-   /* print_dec(stats.slaves[1]); */
-   /* print(" timer: "); */
-   /* print_dec(timer_read()); */
-   /* print("\n"); */
+
+  if (num_processed == 0) {
+    stats.idle++;
   }
-  stats.total += num_packets;
+
+  #ifdef PRINT_STATS
+  uint32_t now = timer_read();
+  if (now - start_time > 1000) {
+    start_time = now;
+    seconds++;
+    for (int i = 0; i < NUM_SLAVES; ++i) {
+      stats.rate[i] = stats.count[i] - stats.rate[i];
+    }
+    print("count(L: ");
+    xprintf("%06lu", stats.count[0]);
+    print(" , R: ");
+    xprintf("%06lu", stats.count[1]);
+    print(")");
+    print(" bad(L: ");
+    xprintf("%04lu", stats.bad[0]);
+    print(" , R: ");
+    xprintf("%04lu", stats.bad[1]);
+    print(")");
+    print(" rate(L: ");
+    xprintf("%03lu", stats.rate[0]);
+    print(", R: ");
+    xprintf("%03lu", stats.rate[1]);
+    print(")");
+    print(" idle: ");
+    xprintf("%08lu", stats.idle);
+    print(" timer: ");
+    xprintf("%05lu", seconds);
+    print("\n");
+    for (int i = 0; i < NUM_SLAVES; ++i) {
+      stats.rate[i] = stats.count[i];
+    }
+  }
+  #endif
 
    /* for (int i = 0; i < 4; ++i) { */
    /*   phex(aes_state[pipe_num]); */
@@ -181,7 +197,7 @@ uint8_t matrix_scan(void)
    /*      error_count = 0; */
    /*  } */
 
-   /*  return ret; */
+    return 0;
 }
 
 /* bool matrix_is_modified(void) */

@@ -1,21 +1,28 @@
-# Hey Emacs, this is a -*- makefile -*-
-
 # AVR-GCC Makefile template, derived from the WinAVR template (which
 # is public domain), believed to be neutral to any flavor of "make"
 # (GNU make, BSD make, SysV make)
 
-
+# F_CPU = 500000UL
+F_CPU = 16000000UL
 MCU = atmega328p
 FORMAT = ihex
-TARGET = keyboard-i2c-slave
+TARGET = wireless-slave
 SRC = \
-	$(TARGET).c \
-	uno-matrix.c \
-	../serial.c \
-	../i2c-slave.c
+	main.c \
+	matrix.c \
+	../wireless/crypto.c \
+	../wireless/nrf.c \
 
-ASRC =
-OPT = s
+ASRC = \
+	../wireless/aes/aes_dec-asm.S \
+	../wireless/aes/aes_enc-asm.S \
+	../wireless/aes/aes_invsbox-asm.S \
+	../wireless/aes/aes_keyschedule-asm.S \
+	../wireless/aes/aes_sbox-asm.S \
+
+# optimise for speed
+# OPT = 3
+OPT = 1
 
 # Programming support using avrdude. Settings and variables.
 
@@ -38,7 +45,7 @@ DEBUG = stabs
 CSTANDARD = -std=gnu99
 
 # Place -D or -U options here
-CDEFS =
+CDEFS = -DF_CPU=$(F_CPU)
 
 # Place -I options here
 CINCS =
@@ -51,7 +58,7 @@ CTUNING = -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums
 CFLAGS = $(CDEBUG) $(CDEFS) $(CINCS) -O$(OPT) $(CWARN) $(CSTANDARD) $(CEXTRA) \
 	-fno-aggressive-loop-optimizations
 
-#ASFLAGS = -Wa,-adhlns=$(<:.S=.lst),-gstabs
+# ASFLAGS = -Wa,-adhlns=$(<:.S=.lst),-gstabs
 
 
 #Additional libraries.
@@ -136,7 +143,7 @@ ALL_ASFLAGS = -mmcu=$(MCU) -I. -x assembler-with-cpp $(ASFLAGS)
 # Default target.
 all: build
 
-build: elf hex eep
+build: hex eep
 
 elf: $(TARGET).elf
 hex: $(TARGET).hex

@@ -23,7 +23,7 @@ void print_hex_buf(uint8_t *x, uint8_t len) {
 }
 
 #ifdef DEBUG
-void debug_info(void) {
+void debug_info(uint8_t verbose) {
   uint8_t temp_buf[32] = {0};
   Serial.println("--debug--");
   Serial.print("CONFIG: ");
@@ -38,7 +38,7 @@ void debug_info(void) {
   Serial.print("RX_ADDR_P0: ");
   read_buf(RX_ADDR_P0, temp_buf, RF_ADDRESS_LEN);
   print_hex_buf(temp_buf, RF_ADDRESS_LEN);
-#ifdef VERBOSE
+  if (verbose) {
     Serial.print("RX_ADDR_P1: ");
     read_buf(RX_ADDR_P1, temp_buf, RF_ADDRESS_LEN);
     print_hex_buf(temp_buf, RF_ADDRESS_LEN);
@@ -62,7 +62,7 @@ void debug_info(void) {
     print_hexln(read_reg(RX_PW_P0));
     Serial.print("RX_PW_P1: ");
     print_hexln(read_reg(RX_PW_P1));
-#endif
+  }
   Serial.println("--debug--\n");
 }
 #else
