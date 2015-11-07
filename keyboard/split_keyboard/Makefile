@@ -50,7 +50,7 @@ TARGET_DIR = .
 # project specific files
 SRC =	\
 	led.c \
-	matrix-wireless.c \
+	matrix.c \
 	split-util.c \
 	wired/i2c.c \
 	wired/serial.c \

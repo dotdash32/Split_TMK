@@ -1,56 +1,30 @@
-/*
-Copyright 2012 Jun Wako <wakojun@gmail.com>
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-/*
- * scan matrix
- */
-#include <stdint.h>
-#include <stdbool.h>
-#include <avr/io.h>
-#include <avr/wdt.h>
-#include <avr/interrupt.h>
-#include <util/delay.h>
-#include "print.h"
+#include <avr/power.h>
 #include "debug.h"
-#include "util.h"
+#include "matrix-wireless.h"
 #include "matrix.h"
-#include "wired/i2c.h"
-#include "wired/serial.h"
-#include "split-util.h"
+#include "print.h"
 #include "pro-micro.h"
+#include "split-util.h"
+#include "timer.h"
+#include "wireless/crypto.h"
+#include "wireless/nrf.h"
 
-#ifndef DEBOUNCE
-#   define DEBOUNCE	5
-#endif
-
-#define ERROR_DISCONNECT_COUNT 5
-
-static uint8_t debouncing = DEBOUNCE;
 static const int ROWS_PER_HAND = MATRIX_ROWS/2;
-static uint8_t error_count = 0;
 
 /* matrix state(1:on, 0:off) */
 static matrix_row_t matrix[MATRIX_ROWS];
-static matrix_row_t matrix_debouncing[MATRIX_ROWS];
 
-static matrix_row_t read_cols(void);
-static void init_cols(void);
-static void unselect_rows(void);
-static void select_row(uint8_t row);
+struct package_stats_t {
+  uint32_t idle;
+  uint32_t count[NUM_SLAVES];
+  uint32_t bad[NUM_SLAVES];
+  uint32_t rate[NUM_SLAVES];
+  uint32_t _idle;
+} stats = {0};
+
+static aes_ctx_t aes_ctx = { 0 };
+static aes_state_t aes_state[2] = { 0 };
+static aes_key_t aes_key = { 0 };
 
 inline
 uint8_t matrix_rows(void)
@@ -67,156 +41,179 @@ uint8_t matrix_cols(void)
 // this code runs before the usb and keyboard is initialized
 void matrix_setup(void) {
     split_keyboard_setup();
+    // wireless setup
+
+    aes128_init(aes_key.key, &aes_ctx);
+    /* crypto_init(aes_key_t *key, aes_state_t *state, role_t role); */
 
     if (!has_usb()) {
         keyboard_slave_loop();
     }
 }
 
+void wireless_init(void) {
+  power_spi_enable();
+  spi_setup(false);
+  nrf_setup(0);
+  nrf_enable(true);
+}
+
 void matrix_init(void)
 {
-    debug_enable = true;
-    debug_matrix = true;
-    debug_mouse = true;
-    // initialize row and col
-    unselect_rows();
-    init_cols();
+    /* debug_enable = true; */
+    /* debug_matrix = true; */
+    /* debug_mouse = true; */
+   wireless_init();
+   /* TX_RX_LED_INIT; */
 
-    TX_RX_LED_INIT;
+   timer_init();
 
     // initialize matrix state: all keys off
     for (uint8_t i=0; i < MATRIX_ROWS; i++) {
         matrix[i] = 0;
-        matrix_debouncing[i] = 0;
     }
 }
 
-uint8_t _matrix_scan(void)
-{
-    // Right hand is stored after the left in the matirx so, we need to offset it
-    int offset = isLeftHand ? 0 : (ROWS_PER_HAND);
-
-    for (uint8_t i = 0; i < ROWS_PER_HAND; i++) {
-        select_row(i);
-        _delay_us(30);  // without this wait read unstable value.
-        matrix_row_t cols = read_cols();
-        if (matrix_debouncing[i+offset] != cols) {
-            matrix_debouncing[i+offset] = cols;
-            debouncing = DEBOUNCE;
-        }
-        unselect_rows();
-    }
-
-    if (debouncing) {
-        if (--debouncing) {
-            _delay_ms(1);
-        } else {
-            for (uint8_t i = 0; i < ROWS_PER_HAND; i++) {
-                matrix[i+offset] = matrix_debouncing[i+offset];
-            }
-        }
-    }
-
-    return 1;
+uint8_t calc_checksum(uint8_t *buf, uint8_t len) {
+  uint8_t result = 0;
+  for (int i = 0; i < len; ++i) {
+    result += buf[i];
+  }
+  return result;
 }
 
-// Get rows from other half over i2c
-int i2c_transaction(void) {
-    int slaveOffset = (isLeftHand) ? (ROWS_PER_HAND) : 0;
-
-    int err = i2c_master_start(SLAVE_I2C_ADDRESS + I2C_WRITE);
-    if (err) goto i2c_error;
-
-    // Matrix stored at 0x00-0x03
-    err = i2c_master_write(0x00);
-    if (err) goto i2c_error;
-
-    // Start read
-    err = i2c_master_start(SLAVE_I2C_ADDRESS + I2C_READ);
-    if (err) goto i2c_error;
-
-    if (!err) {
-        int i;
-        for (i = 0; i < ROWS_PER_HAND-1; ++i) {
-            matrix[slaveOffset+i] = i2c_master_read(I2C_ACK);
-        }
-        matrix[slaveOffset+i] = i2c_master_read(I2C_NACK);
-        i2c_master_stop();
-    } else {
-i2c_error: // the cable is disconnceted, or something else went wrong
-        i2c_reset_state();
-        return err;
-    }
-
-    return 0;
+void update_half(uint8_t *buf, bool device_num) {
+  uint8_t offset = device_num * ROWS_PER_HAND;
+  for (int i = 0; i < ROWS_PER_HAND; ++i) {
+    matrix[i+offset] = buf[i];
+  }
 }
 
-int serial_transaction(void) {
-    int slaveOffset = (isLeftHand) ? (ROWS_PER_HAND) : 0;
+/* TODO: remove */
+void matrix_slave_scan(void) {}
 
-    if (serial_update_buffers()) {
-        return 1;
-    }
-
-    for (int i = 0; i < ROWS_PER_HAND; ++i) {
-        matrix[slaveOffset+i] = serial_slave_buffer[i];
-    }
-    return 0;
+void print_hex_buf(uint8_t* data, uint8_t len) {
+   for (int i = 0; i < len; ++i) {
+      print_hex8(data[i]);
+   }
 }
+
+static uint32_t start_time = 0;
+static uint32_t seconds = 0;
 
 uint8_t matrix_scan(void)
 {
-    int ret = _matrix_scan();
+  int num_processed = 0;
+  int pipe_num = nrf_rx_pipe_number();
+  while( pipe_num < NUM_SLAVES ) {
+    nrf_read_rx_fifo(aes_state[pipe_num].data, RF_BUFFER_LEN);
 
+/* #ifdef DEBUG */
+/*     print_hex_buf(aes_state[pipe_num].data, 16); */
+/* #endif */
 
+    decrypt(&aes_state[pipe_num], &aes_ctx);
 
-#ifdef USE_I2C
-    if( i2c_transaction() ) {
-#else
-    if( serial_transaction() ) {
-#endif
-        // turn on the indicator led when halves are disconnected
-        TXLED1;
+/* #ifdef DEBUG */
+/*     print(" => "); */
+/*     print_hex_buf(aes_state[pipe_num].data, 16); */
+/*     print("\n"); */
+/* #endif */
 
-        error_count++;
-
-        if (error_count > ERROR_DISCONNECT_COUNT) {
-            // reset other half if disconnected
-            int slaveOffset = (isLeftHand) ? (ROWS_PER_HAND) : 0;
-            for (int i = 0; i < ROWS_PER_HAND; ++i) {
-                matrix[slaveOffset+i] = 0;
-            }
-        }
+    stats.count[pipe_num]++;
+    uint8_t ccsum = calc_checksum(aes_state[pipe_num].data, ROWS_PER_HAND);
+    if (aes_state[pipe_num].data[CHECK_SUM_POSITION] != ccsum) {
+      stats.bad[pipe_num]++;
     } else {
-        // turn off the indicator led on no error
-        TXLED0;
-        error_count = 0;
+      update_half(aes_state[pipe_num].data, pipe_num);
     }
 
-    return ret;
-}
+    num_processed++;
 
-void matrix_slave_scan(void) {
-    _matrix_scan();
+    // check again
+    pipe_num = nrf_rx_pipe_number();
+  }
 
-    int offset = (isLeftHand) ? 0 : (MATRIX_ROWS / 2);
+  if (num_processed == 0) {
+    stats._idle++;
+  }
 
-    for (int i = 0; i < ROWS_PER_HAND; ++i) {
-        serial_slave_buffer[i] = matrix[offset+i];
+  uint32_t now = timer_read();
+  if (now - start_time > 1000) {
+    start_time = now;
+    seconds++;
+    for (int i = 0; i < NUM_SLAVES; ++i) {
+      stats.rate[i] = stats.count[i] - stats.rate[i];
     }
+    stats.idle = stats._idle;
+    stats._idle = 0;
+  #ifdef PRINT_STATS
+    print("count(L: ");
+    xprintf("%06lu", stats.count[0]);
+    print(" , R: ");
+    xprintf("%06lu", stats.count[1]);
+    print(")");
+    print(" bad(L: ");
+    xprintf("%04lu", stats.bad[0]);
+    print(" , R: ");
+    xprintf("%04lu", stats.bad[1]);
+    print(")");
+    print(" rate(L: ");
+    xprintf("%03lu", stats.rate[0]);
+    print(", R: ");
+    xprintf("%03lu", stats.rate[1]);
+    print(")");
+    print(" idle: ");
+    xprintf("%05lu", stats.idle);
+    print(" timer: ");
+    xprintf("%05lu", seconds);
+    print("\n");
+  #endif
+    for (int i = 0; i < NUM_SLAVES; ++i) {
+      stats.rate[i] = stats.count[i];
+    }
+  }
+
+   /* for (int i = 0; i < 4; ++i) { */
+   /*   phex(aes_state[pipe_num]); */
+   /* } */
+   /* pbin_reverse16(matrix_get_row(row)); */
+   /* print("\n"); */
+   /* TXLED0; */
+
+   /* if( serial_transaction() ) { */
+   /*      // turn on the indicator led when halves are disconnected */
+   /*      TXLED1; */
+
+   /*      error_count++; */
+
+   /*      if (error_count > ERROR_DISCONNECT_COUNT) { */
+   /*          // reset other half if disconnected */
+   /*          int slaveOffset = (isLeftHand) ? (ROWS_PER_HAND) : 0; */
+   /*          for (int i = 0; i < ROWS_PER_HAND; ++i) { */
+   /*              matrix[slaveOffset+i] = 0; */
+   /*          } */
+   /*      } */
+   /*  } else { */
+   /*      // turn off the indicator led on no error */
+   /*      TXLED0; */
+   /*      error_count = 0; */
+   /*  } */
+
+    return 0;
 }
 
-bool matrix_is_modified(void)
-{
-    if (debouncing) return false;
-    return true;
-}
+/* bool matrix_is_modified(void) */
+/* { */
+/*     if (debouncing) return false; */
+/*     return true; */
+/* } */
 
-inline
-bool matrix_is_on(uint8_t row, uint8_t col)
-{
-    return (matrix[row] & ((matrix_row_t)1<<col));
-}
+/* inline */
+/* bool matrix_is_on(uint8_t row, uint8_t col) */
+/* { */
+/*     return (matrix[row] & ((matrix_row_t)1<<col)); */
+/* } */
 
 inline
 matrix_row_t matrix_get_row(uint8_t row)
@@ -231,83 +228,5 @@ void matrix_print(void)
         phex(row); print(": ");
         pbin_reverse16(matrix_get_row(row));
         print("\n");
-    }
-}
-
-uint8_t matrix_key_count(void)
-{
-    uint8_t count = 0;
-    for (uint8_t i = 0; i < MATRIX_ROWS; i++) {
-        count += bitpop16(matrix[i]);
-    }
-    return count;
-}
-
-/* Column pin configuration
- * col: 0
- * pin: B2
-
- * col: 0   1   2   3   4   5
- * pin: F6  F7  B1  B3  B2  B6
- */
-static void  init_cols(void)
-{
-    // Input with pull-up(DDR:0, PORT:1)
-    DDRB  &= ~(1<<1 | 1<<3 | 1<<2 | 1<<6);
-    PORTB |=  (1<<1 | 1<<3 | 1<<2 | 1<<6);
-    DDRF  &= ~(1<<6 | 1<<7);
-    PORTF |=  (1<<6 | 1<<7);
-}
-
-static matrix_row_t read_cols(void)
-{
-    return (PINF&(1<<6) ? 0 : (1<<0)) |
-           (PINF&(1<<7) ? 0 : (1<<1)) |
-           (PINB&(1<<1) ? 0 : (1<<2)) |
-           (PINB&(1<<3) ? 0 : (1<<3)) |
-           (PINB&(1<<2) ? 0 : (1<<4)) |
-           (PINB&(1<<6) ? 0 : (1<<5));
-}
-
-/* Row pin configuration
- * row: 0
- * pin: B1
- *
- * row: 0  1  2  4
- * pin: D7 E6 B4 B6
- */
-static void unselect_rows(void)
-{
-    // Hi-Z(DDR:0, PORT:0) to unselect
-    DDRB  &= ~0b00110000;
-    PORTB &= ~0b00110000;
-
-    DDRD  &= ~0b10000000;
-    PORTD &= ~0b10000000;
-
-    DDRE  &= ~0b01000000;
-    PORTE &= ~0b01000000;
-}
-
-static void select_row(uint8_t row)
-{
-    // Output low(DDR:1, PORT:0) to select
-    switch (row) {
-        case 0:
-            DDRD  |= (1<<7);
-            PORTD &= ~(1<<7);
-            break;
-        case 1:
-            DDRE  |= (1<<6);
-            PORTE &= ~(1<<6);
-            break;
-        case 2:
-            DDRB  |= (1<<4);
-            PORTB &= ~(1<<4);
-            break;
-        case 3:
-            DDRB  |= (1<<5);
-            PORTB &= ~(1<<5);
-            break;
     }
 }

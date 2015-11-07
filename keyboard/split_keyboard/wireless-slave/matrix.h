@@ -1,5 +1,5 @@
-#ifndef UNO_MATRIX
-#define UNO_MATRIX
+#ifndef MATRIX_H_VGYP1JIV
+#define MATRIX_H_VGYP1JIV
 
 #define MATRIX_ROWS 4
 #define MATRIX_COLS 6
@@ -8,17 +8,16 @@
 
 typedef uint8_t matrix_row_t;
 
-uint8_t matrix_rows(void);
-uint8_t matrix_cols(void);
-void matrix_init(void);
-uint8_t matrix_scan(void);
-bool matrix_is_modified(void);
-bool matrix_is_on(uint8_t row, uint8_t col);
-matrix_row_t matrix_get_row(uint8_t row);
+typedef struct matrix_scan_t {
+  uint8_t changed;  // any key state changed
+  uint8_t active;   // any key is down
+  uint8_t checksum; // sum of rows
+} matrix_scan_t;
 
-/* void matrix_scan2(void); */
-uint8_t matrix_scan2(bool slow_mode);
-matrix_row_t matrix_get_row2(uint8_t row);
+void matrix_init(void);
+/* uint8_t matrix_scan_slow(void); */
+void matrix_scan_slow(matrix_scan_t *scan);
+matrix_row_t matrix_get_row(uint8_t row);
 void matrix_interrupt_mode(void);
 
-#endif
+#endif /* end of include guard: MATRIX_H_VGYP1JIV */

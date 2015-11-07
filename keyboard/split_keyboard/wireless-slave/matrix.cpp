@@ -3,13 +3,9 @@
 #include <avr/interrupt.h>
 #include <stdlib.h>
 
-/* #include "../config.h" */
 #include "matrix.h"
+#include "clock.h"
 
-#define debug(X) NULL
-#define debug_hex(X) NULL
-
-/* matrix state(1:on, 0:off) */
 static matrix_row_t matrix[MATRIX_ROWS];
 static matrix_row_t matrix_debouncing[MATRIX_ROWS];
 
@@ -17,18 +13,6 @@ static matrix_row_t read_cols(void);
 static void init_cols(void);
 static void unselect_rows(void);
 static void select_row(uint8_t row);
-
-inline
-uint8_t matrix_rows(void)
-{
-    return MATRIX_ROWS;
-}
-
-inline
-uint8_t matrix_cols(void)
-{
-    return MATRIX_COLS;
-}
 
 void matrix_init(void)
 {
@@ -43,22 +27,28 @@ void matrix_init(void)
     }
 }
 
-uint8_t matrix_scan2(bool slow_mode) {
-  uint8_t changing = 0;
+// NOTE: the debouncing time of this scaning method is controlled by
+// that rate at which this function is called.
+void matrix_scan_slow(matrix_scan_t *scan) {
+  scan->changed = 0;
+  scan->checksum = 0;
+
   for (uint8_t i = 0; i < MATRIX_ROWS; i++) {
     select_row(i);
-    _delay_us(30);  // without this wait read unstable value.
+    clock_delay_slow_us(30);  // without this wait read unstable value.
     matrix_row_t cols = read_cols();
     const uint8_t old_row_val = matrix[i];
     matrix[i] = matrix_debouncing[i] & cols;
-    changing |= old_row_val != matrix[i];
+    scan->checksum += matrix[i];
+    scan->changed |= old_row_val != matrix[i];
     matrix_debouncing[i] = cols;
     unselect_rows();
   }
-  return changing;
+
+  scan->active = !scan->checksum;
 }
 
-matrix_row_t matrix_get_row2(uint8_t row)
+matrix_row_t matrix_get_row(uint8_t row)
 {
     return matrix[row];
 }
@@ -95,6 +85,7 @@ ISR(PCINT2_vect) {
   PCIFR  = 0;
 }
 
+/* TODO: update with *real* values */
 /* Column pin configuration
  * col: 0   1   2   3   4   5
  * pin: D0  D1  D2  D3  D4  D5

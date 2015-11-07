@@ -33,7 +33,8 @@ void nrf_enable(uint8_t val) {
   ce(val);
 }
 
-void spi_setup(void) {
+void spi_setup(bool double_speed) {
+  /* TODO: change this define to an appropriate one for the promicro */
 #if defined(__AVR_ATmega32U4__)
   // SS(B0) is connected to the led on the pro micro so we can reach it.
   // When setting up need to set B0 as output high, to get SPI to work.
@@ -48,8 +49,9 @@ void spi_setup(void) {
 
   // nrf supports 10Mbs on spi
   /* SPCR = (1<<SPI2X) | (1<<SPE) | (1<<MSTR); */
-  // setup spi with: clk/4, msb, mode0
-  SPCR = (1<<SPE) | (1<<MSTR);
+  // setup spi with: msb, mode0
+  // clk/4 or clk/2 based on if double_speed
+  SPCR = (double_speed<<SPI2X) | (1<<SPE) | (1<<MSTR);
 }
 
 uint8_t spi_transceive(uint8_t data) {
@@ -78,7 +80,7 @@ uint8_t write_buf(uint8_t reg, const uint8_t *buf, uint8_t len) {
   csn(0);
   status = spi_transceive(W_REGISTER | (REGISTER_MASK & reg));
   for (int i = 0; i < len; ++i) {
-    spi_transceive(buf[i]);
+    status = spi_transceive(buf[i]);
   }
   csn(1);
   return status;
@@ -96,14 +98,15 @@ uint8_t spi_command(uint8_t command) {
   return status;
 }
 
-void nrf_power_set(bool on) {
+uint8_t nrf_power_set(bool on) {
 #if MASTER_DEVICE
-  write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (1<<PRIM_RX));
+  return write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (1<<PRIM_RX));
 #else // slave
-  write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (0<<PRIM_RX));
+  return write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (0<<PRIM_RX));
 #endif
 }
 
+/* TODO: add rf channel customization */
 void nrf_setup(uint8_t device_num) {
   /* TODO: move to program memory */
   /* TODO: add configuration */
@@ -139,8 +142,8 @@ void nrf_setup(uint8_t device_num) {
     features |= (1<<EN_DYN_ACK);
 #endif
 
-  write_reg(RF_CH, 0x02); // default rf channel
-  // 2Mbps @ -18dBm
+  write_reg(RF_CH, RF_CHANNEL & 0x7f);
+  // 2mbs
   write_reg(RF_SETUP, (0<<RF_DR_LOW) | (1<<RF_DR_HIGH) | (RF_PWR_LEVEL < RF_PWR));
 
   // set address width
@@ -150,8 +153,6 @@ void nrf_setup(uint8_t device_num) {
     case 5: write_reg(SETUP_AW, 0x3); break;
     default: break; //
   }
-
-  write_reg(NRF_STATUS, 0xff);
 
 #if MASTER_DEVICE
   uint8_t zero_addr[RF_BUFFER_LEN] = { 0 }; // debug
@@ -178,10 +179,9 @@ void nrf_setup(uint8_t device_num) {
   // empty the buffers
   spi_command(FLUSH_RX);
   spi_command(FLUSH_TX);
+  nrf_clear_flags();
 
   nrf_power_set(1);
-  /* NOTE: need to wait for the oscillator connected to then nrf24 to start up
-   * before we can send data */
   _delay_us(100);
 }
 
@@ -200,24 +200,24 @@ uint8_t nrf_load_tx_fifo(uint8_t *buf, uint8_t len) {
   return status;
 }
 
-void nrf_clear_flags(void) {
-    write_reg(NRF_STATUS, 0x70);
+uint8_t nrf_clear_flags(void) {
+  return write_reg(NRF_STATUS, 0x70);
 }
 
 void nrf_send_one(void) {
   ce(1);
-  /* TODO: fix for clock div */
-  _delay_us(11); // need to hold CE for at least 10μs
+  _delay_us(10); // need to hold CE for at least 10μs
   ce(0);
 }
 
-void nrf_send_all(void) {
+uint8_t nrf_send_all(void) {
+  uint8_t status;
   ce(1);
-  /* TODO: fix for clock div */
-  _delay_us(11);
-  while( !(read_reg(FIFO_STATUS) & (1<<TX_EMPTY)) &&
-         !(read_reg(NRF_STATUS) & (1<<MAX_RT)) );
+  _delay_us(10);
+  while( !((status = read_reg(FIFO_STATUS)) & (1<<TX_EMPTY)) &&
+         !((status = read_reg(NRF_STATUS)) & (1<<MAX_RT)) );
   ce(0);
+  return status;
 }
 
 void nrf_read_rx_fifo(uint8_t *buf, uint8_t len) {
