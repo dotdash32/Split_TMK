@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>eeprom-gen</title>
+    <script src="jvintelhex.js" type="text/javascript" charset="utf-8"></script>
+    <script src="eeprom.js" type="text/javascript" charset="utf-8"></script>
+  </head>
+
+  <body>
+    <h2>TMK Boot Magic Settings</h2>
+    <a href="https://github.com/tmk/tmk_keyboard#boot-magic-configuration---virtual-dip-switch" target="_blank">TMK boot magic settings explained.</a>
+    <br />
+      <strong>Keyconfig:</strong> <br />
+        SWAP_CONTROL_CAPSLOCK    :<input type="checkbox" id="k0"/> </br>
+        CAPSLOCK_TO_CONTROL      :<input type="checkbox" id="k1"/> </br>
+        SWAP_LALT_LGUI           :<input type="checkbox" id="k2"/> </br>
+        SWAP_RALT_RGUI           :<input type="checkbox" id="k3"/> </br>
+        NO_GUI                   :<input type="checkbox" id="k4"/> </br>
+        SWAP_GRAVE_ESC           :<input type="checkbox" id="k5"/> </br>
+        SWAP_BACKSLASH_BACKSPACE :<input type="checkbox" id="k6"/> </br>
+        NKRO                     :<input type="checkbox" id="k7"/> </br>
+      <strong>Debug:</strong>
+        ENABLE  :<input type="checkbox" id="d0"/>
+        MATRIX  :<input type="checkbox" id="d1"/>
+        KEYBOARD:<input type="checkbox" id="d2"/>
+        MOUSE   :<input type="checkbox" id="d3"/>
+      </br>
+      <strong>Default Layers:</strong>
+        0:<input type="checkbox" id="l0"/>
+        1:<input type="checkbox" id="l1"/>
+        2:<input type="checkbox" id="l2"/>
+        3:<input type="checkbox" id="l3"/>
+        4:<input type="checkbox" id="l4"/>
+        5:<input type="checkbox" id="l5"/>
+        6:<input type="checkbox" id="l6"/>
+        7:<input type="checkbox" id="l7"/>
+      </br>
+        <strong>Backlight:</strong><input type="text" id="backlight"/>
+      </br>
+        <strong>Mouse Key Acceleration:</strong><input type="text" id="mouseaccel"/>
+      </br>
+      <button type="button" onclick="updateSettings()">Generate</button>
+      <h2>Wireless Settings:</h2>
+      <p id="rf"></p>
+      (Note: if you only want to update tmk boot magic settings, only copy
+      the first line of the generated files.)
+    <h2>eeprom-left.eep</h2>
+    <textarea id="left"
+              rows="10"
+              cols="50"></textarea>
+    <h2>eeprom-right.eep</h2>
+    <textarea id="right"
+              rows="10"
+              cols="50"></textarea>
+    </br>
+
+    <script type="text/javascript" charset="utf-8">
+      updateSettings();
+    </script>
+  </body>
+</html>

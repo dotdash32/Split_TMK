@@ -3,11 +3,11 @@
 #include <avr/interrupt.h>
 #include <stdlib.h>
 
-#include "matrix.h"
-#include "clock.h"
+#include "./matrix.h"
+#include "./clock.h"
 
-static matrix_row_t matrix[MATRIX_ROWS];
-static matrix_row_t matrix_debouncing[MATRIX_ROWS];
+static matrix_row_t matrix[ROWS_PER_HAND];
+static matrix_row_t matrix_debouncing[ROWS_PER_HAND];
 
 static matrix_row_t read_cols(void);
 static void init_cols(void);
@@ -21,7 +21,7 @@ void matrix_init(void)
     init_cols();
 
     // initialize matrix state: all keys off
-    for (uint8_t i=0; i < MATRIX_ROWS; i++) {
+    for (uint8_t i=0; i < ROWS_PER_HAND; i++) {
         matrix[i] = 0;
         matrix_debouncing[i] = 0;
     }
@@ -29,25 +29,27 @@ void matrix_init(void)
 
 // NOTE: the debouncing time of this scaning method is controlled by
 // that rate at which this function is called.
+inline
 void matrix_scan_slow(matrix_scan_t *scan) {
+  matrix_row_t cols;
   scan->changed = 0;
-  scan->checksum = 0;
+  scan->active = 0;
 
-  for (uint8_t i = 0; i < MATRIX_ROWS; i++) {
+  for (uint8_t i = 0; i < ROWS_PER_HAND; i++) {
     select_row(i);
-    clock_delay_slow_us(30);  // without this wait read unstable value.
-    matrix_row_t cols = read_cols();
-    const uint8_t old_row_val = matrix[i];
+    /* clock_delay_slow_us(30);  // without this wait read unstable value. */
+    const uint8_t old_row_val = matrix[i]; // instead of delay
+
+    cols = read_cols();
     matrix[i] = matrix_debouncing[i] & cols;
-    scan->checksum += matrix[i];
+    scan->active |= matrix[i];
     scan->changed |= old_row_val != matrix[i];
     matrix_debouncing[i] = cols;
     unselect_rows();
   }
-
-  scan->active = !scan->checksum;
 }
 
+inline
 matrix_row_t matrix_get_row(uint8_t row)
 {
     return matrix[row];
@@ -90,6 +92,7 @@ ISR(PCINT2_vect) {
  * col: 0   1   2   3   4   5
  * pin: D0  D1  D2  D3  D4  D5
  */
+inline
 static void  init_cols(void)
 {
     // Input with pull-up(DDR:0, PORT:1)
@@ -97,6 +100,7 @@ static void  init_cols(void)
   PORTD |=  (0xfc);
 }
 
+inline
 static matrix_row_t read_cols(void)
 {
     return (~PIND & 0xfc) >> 2;
@@ -106,6 +110,7 @@ static matrix_row_t read_cols(void)
  * row: 0  1  2  3
  * pin: C0 C1 C2 C3
  */
+inline
 static void unselect_rows(void)
 {
     // Hi-Z(DDR:0, PORT:0) to unselect
@@ -113,6 +118,7 @@ static void unselect_rows(void)
     PORTC &= ~0xF;
 }
 
+inline
 static void select_row(uint8_t row)
 {
     // Output low(DDR:1, PORT:0) to select

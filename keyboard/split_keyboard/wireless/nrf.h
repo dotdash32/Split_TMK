@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "../split-config.h"
+#include "../split-util.h"
 
 #if defined(__AVR_ATmega32U4__)
 #define CE 7   // f7
@@ -22,9 +24,6 @@
 
 #define MAX_RETRANSMIT 15 // 0-15
 #define RF_PWR_LEVEL   0 // 0-3 ((-18 + x*6) dBm)
-/* NOTE: We use 2Mbs data rate, so channel bandwidth is 2MHz, so
- * channels will overlap if they are not separated by more than 2MHz. */
-#define RF_CHANNEL 2 // 0-128 ((2400 + x) MHz)
 
 #define RF_BUFFER_LEN 16 // 0-32 bytes
 #define RF_ADDRESS_LEN 3 // 3-5 bytes
@@ -39,7 +38,7 @@ uint8_t write_reg(uint8_t reg, uint8_t data);
 uint8_t spi_command(uint8_t command);
 
 // setup and control
-void nrf_setup(uint8_t device_num);
+void nrf_setup(device_settings_t *settings);
 uint8_t nrf_power_set(bool on);
 void nrf_enable(uint8_t val);
 uint8_t nrf_clear_flags(void);

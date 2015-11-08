@@ -56,6 +56,7 @@ SRC =	\
 	wired/serial.c \
 	wireless/crypto.c \
 	wireless/nrf.c \
+	wireless/nrf_debug.c \
 	wireless/aes/aes_dec-asm.S \
 	wireless/aes/aes_invsbox-asm.S \
 	wireless/aes/aes_keyschedule-asm.S \
@@ -68,7 +69,9 @@ CONFIG_H = config.h
 MCU = atmega32u4
 
 COM_PORT=/dev/ttyACM0
-PROGRAM_CMD=sleep 3; avrdude -p atmega32u4 -P $(COM_PORT) -c avr109 -U flash:w:$(TARGET).hex
+AVRDUDE_CMD=sleep 3; avrdude -p atmega32u4 -P $(COM_PORT) -c avr109
+PROGRAM_CMD=$(AVRDUDE_CMD) -U flash:w:$(TARGET).hex
+
 
 # Processor frequency.
 #     This will define a symbol, F_CPU, in all source code files equal to the
@@ -122,7 +125,8 @@ OPT_DEFS += -DSPACE_ON_LEFT_HALF
 # OPT_DEFS += -DUSE_I2C
 
 OPT_DEFS += -DUSE_AUTO_ACK -DMASTER_DEVICE
-OPT_DEFS += -DPRINT_STATS
+OPT_DEFS += -DDEBUG
+OPT_DEFS += -DDEBUG_VERBOSE
 
 # Build Options
 #   comment out to disable the options.
@@ -167,6 +171,8 @@ include $(TMK_DIR)/protocol/lufa.mk
 include $(TMK_DIR)/common.mk
 include $(TMK_DIR)/rules.mk
 
+debug-verbose: EXTRAFLAGS += -DDEBUG -DDEBUG_ACTION -DDEBUG_VERBOSE
+debug-verbose: all
 
 debug-on: EXTRAFLAGS += -DDEBUG -DDEBUG_ACTION
 debug-on: all
@@ -175,8 +181,17 @@ debug-off: EXTRAFLAGS += -DNO_DEBUG -DNO_PRINT
 debug-off: OPT_DEFS := $(filter-out -DCONSOLE_ENABLE,$(OPT_DEFS))
 debug-off: all
 
-eeprom-left:
-	sleep 3; avrdude -p atmega32u4 -P $(COM_PORT) -c avr109 -U eeprom:w:eeprom-lefthand.eep
+erase:
+	$(AVRDUDE_CMD) -e
 
-eeprom-right:
-	sleep 3; avrdude -p atmega32u4 -P $(COM_PORT) -c avr109 -U eeprom:w:eeprom-righthand.eep
+load-eeprom:
+	$(AVRDUDE_CMD) -U eeprom:w:eeprom-left.eep
+
+read-eeprom:
+	$(AVRDUDE_CMD) -U eeprom:r:-:i
+
+lock:
+	$(AVRDUDE_CMD) -U lock:w:0xec:m
+
+reset-lock:
+	$(AVRDUDE_CMD) -U lock:w:0xef:m

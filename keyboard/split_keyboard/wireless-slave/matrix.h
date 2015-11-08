@@ -1,9 +1,7 @@
 #ifndef MATRIX_H_VGYP1JIV
 #define MATRIX_H_VGYP1JIV
 
-#define MATRIX_ROWS 4
-#define MATRIX_COLS 6
-
+#include "../config.h"
 #include <stdbool.h>
 
 typedef uint8_t matrix_row_t;
@@ -11,7 +9,6 @@ typedef uint8_t matrix_row_t;
 typedef struct matrix_scan_t {
   uint8_t changed;  // any key state changed
   uint8_t active;   // any key is down
-  uint8_t checksum; // sum of rows
 } matrix_scan_t;
 
 void matrix_init(void);

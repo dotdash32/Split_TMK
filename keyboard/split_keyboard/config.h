@@ -27,9 +27,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define PRODUCT         tmk-split-keyboard
 #define DESCRIPTION     tmk split keyboard firmware
 
+#define USB_POLLING_INTERVAL 1 // ms
+
 /* key matrix size */
 #define MATRIX_ROWS 8
 #define MATRIX_COLS 6
+#define ROWS_PER_HAND MATRIX_ROWS/2
 
 /* define if matrix has ghost */
 //#define MATRIX_HAS_GHOST
