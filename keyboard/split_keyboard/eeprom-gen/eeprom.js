@@ -21,7 +21,8 @@ var EECONFIG_KEYMAP_SWAP_BACKSLASH_BACKSPACE  = (1<<6);
 var EECONFIG_KEYMAP_NKRO                      = (1<<7);
 
 var EECONFIG_AES_KEY       =   0x0010;// 16 bytes
-var EECONFIG_DEVICE_NUMBER =   0x0024;// 1 byte
+var EECONFIG_NONCE         =   0x0020;// 4 byte
+var EECONFIG_RF_POWER      =   0x0024;// 1 byte
 var EECONFIG_RF_CHANNEL    =   0x0025;// 1 byte
 var EECONFIG_DEVICE_ADDR_0 =   0x0030;// 5  bytes
 var EECONFIG_DEVICE_ADDR_1 =   0x0035;// 5  bytes
@@ -74,7 +75,8 @@ function getBits(id) {
 var data = {
   memory : [],
   key    : genRandomBytes(16),
-  rf_channel : [genRandomBytes(1)[0] & 0x7f],
+  rf_channel : genRandomBytes(1)[0] & 0x7f,
+  rf_power : 3,
   addr0  : genRandomBytes(5),
   addr1  : genRandomBytes(5),
   keyConf : 0,
@@ -97,36 +99,36 @@ function generateHex() {
 
   // wireless
   copyRegion(data.memory, data.key,        EECONFIG_AES_KEY);
-  copyRegion(data.memory, data.rf_channel, EECONFIG_RF_CHANNEL);
   copyRegion(data.memory, data.addr0,      EECONFIG_DEVICE_ADDR_0);
   copyRegion(data.memory, data.addr1,      EECONFIG_DEVICE_ADDR_1);
-  data.memory[EECONFIG_DEVICE_NUMBER] = 0;
+  data.memory[EECONFIG_RF_CHANNEL] = data.rf_channel;
+  data.memory[EECONFIG_RF_POWER] = data.rf_power;
 
   var temp = new JVIntelHEX(data.memory.slice(), 16, 0x0000, true); temp.createRecords();
-  data.left = temp.getHEXFile();
-
-  data.memory[EECONFIG_DEVICE_NUMBER] = 1;
-  var temp = new JVIntelHEX(data.memory.slice(), 16, 0x0000, true); temp.createRecords();
-  data.right = temp.getHEXFile();
+  data.generatedFile = temp.getHEXFile();
 
   var rf_settings = ""
       rf_settings += ("aes_key: " + toHexString(data.key));
       rf_settings += ("<br/>");
-      rf_settings += ("rf_channel: " + data.rf_channel[0]);
-      rf_settings += (" (" + ((2400 + data.rf_channel[0]*1))/1000 + " GHz)");
+      rf_settings += ("rf_power: " + data.rf_power);
+      rf_settings += (" (" + (-18 + 6*data.rf_power) + " dbm)");
+      rf_settings += ("<br/>");
+      rf_settings += ("rf_channel: " + data.rf_channel);
+      rf_settings += (" (" + (2400 + data.rf_channel)/1000 + " GHz)");
       rf_settings += ("<br/>");
       rf_settings += ("mac addr0:  " + toHexString(data.addr0));
       rf_settings += ("<br/>");
       rf_settings += ("mac addr1: " + toHexString(data.addr1));
       rf_settings += ("<br/>");
+
   document.getElementById('rf').innerHTML = rf_settings;
-  document.getElementById('left').value = data.left;
-  document.getElementById('right').value = data.right;
+  document.getElementById('output').value = data.generatedFile;
 }
 
 function updateSettings() {
   data.backlight = getField8("backlight");
   data.mouseaccel = getField8("mouseaccel");
+  data.rf_power = getField8("rf_power", 0x03);
   data.debug = getBits("d");
   data.layer = getBits("l");
   data.keyConf = getBits("k");

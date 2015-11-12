@@ -68,10 +68,11 @@ CONFIG_H = config.h
 # MCU name
 MCU = atmega32u4
 
-COM_PORT=/dev/ttyACM0
+ifndef COM_PORT
+    COM_PORT=/dev/ttyACM0
+endif
 AVRDUDE_CMD=sleep 3; avrdude -p atmega32u4 -P $(COM_PORT) -c avr109
 PROGRAM_CMD=$(AVRDUDE_CMD) -U flash:w:$(TARGET).hex
-
 
 # Processor frequency.
 #     This will define a symbol, F_CPU, in all source code files equal to the
@@ -124,9 +125,11 @@ OPT_DEFS += -DSPACE_ON_LEFT_HALF
 # # Use I2C for communication between the halves of the keyboard
 # OPT_DEFS += -DUSE_I2C
 
-OPT_DEFS += -DUSE_AUTO_ACK -DMASTER_DEVICE
+OPT_DEFS += -DUSE_AUTO_ACK -DDEVICE_ID=0xff
 OPT_DEFS += -DDEBUG
-OPT_DEFS += -DDEBUG_VERBOSE
+# OPT_DEFS += -DDEBUG_VERBOSE
+
+EEPROM_FILE = eeprom-split.eep
 
 # Build Options
 #   comment out to disable the options.
@@ -171,9 +174,6 @@ include $(TMK_DIR)/protocol/lufa.mk
 include $(TMK_DIR)/common.mk
 include $(TMK_DIR)/rules.mk
 
-debug-verbose: EXTRAFLAGS += -DDEBUG -DDEBUG_ACTION -DDEBUG_VERBOSE
-debug-verbose: all
-
 debug-on: EXTRAFLAGS += -DDEBUG -DDEBUG_ACTION
 debug-on: all
 
@@ -185,13 +185,13 @@ erase:
 	$(AVRDUDE_CMD) -e
 
 load-eeprom:
-	$(AVRDUDE_CMD) -U eeprom:w:eeprom-left.eep
+	$(AVRDUDE_CMD) -U eeprom:w:$(EEPROM_FILE)
 
 read-eeprom:
 	$(AVRDUDE_CMD) -U eeprom:r:-:i
 
 lock:
-	$(AVRDUDE_CMD) -U lock:w:0xec:m
+	$(AVRDUDE_CMD) -U lock:w:0x2c:m
 
 reset-lock:
 	$(AVRDUDE_CMD) -U lock:w:0xef:m

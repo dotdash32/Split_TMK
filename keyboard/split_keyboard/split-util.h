@@ -4,10 +4,8 @@
 #include <stdbool.h>
 #include "split-config.h"
 
-#define NUM_SLAVES 2
-
 typedef struct device_settings_t {
-  uint8_t device_num;
+  uint8_t rf_power;
   uint8_t rf_channel;
   uint8_t addr0[5];
   uint8_t addr1[5];

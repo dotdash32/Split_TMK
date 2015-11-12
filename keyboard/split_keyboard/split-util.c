@@ -12,7 +12,7 @@
 #endif
 
 void load_eeprom_settings(device_settings_t *settings) {
-   settings->device_num = eeprom_read_byte(EECONFIG_DEVICE_NUMBER);
+   settings->rf_power = eeprom_read_byte(EECONFIG_RF_POWER);
    settings->rf_channel = eeprom_read_byte(EECONFIG_RF_CHANNEL);
    eeprom_read_block(settings->addr0, EECONFIG_DEVICE_ADDR_0, 5);
    eeprom_read_block(settings->addr1, EECONFIG_DEVICE_ADDR_1, 5);

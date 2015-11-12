@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "nRF24L01.h"
 #include "../split-config.h"
 #include "../split-util.h"
 
@@ -13,8 +14,12 @@
 #define MISO 3 // b4
 #define SCK  1 // b1
 #elif defined(__AVR_ATmega328P__)
-#define CE 0   // b0
-#define CSN 2  // b2
+#ifndef CE
+  #define CE 0   // b0
+#endif
+#ifndef CSN
+  #define CSN 2  // b2
+#endif
 #define MOSI 3 // b3
 #define MISO 4 // b4
 #define SCK  5 // b5
@@ -23,7 +28,6 @@
 // move some of these settings t eeprom
 
 #define MAX_RETRANSMIT 15 // 0-15
-#define RF_PWR_LEVEL   0 // 0-3 ((-18 + x*6) dBm)
 
 #define RF_BUFFER_LEN 16 // 0-32 bytes
 #define RF_ADDRESS_LEN 3 // 3-5 bytes

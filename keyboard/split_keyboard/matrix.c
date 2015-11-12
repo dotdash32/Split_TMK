@@ -1,4 +1,6 @@
 #include <avr/power.h>
+#include <util/delay.h>
+#include <string.h>
 #include "debug.h"
 #include "matrix-wireless.h"
 #include "matrix.h"
@@ -18,6 +20,7 @@ struct package_stats_t {
     uint32_t count[NUM_SLAVES];
     uint32_t bad[NUM_SLAVES];
     uint32_t rate[NUM_SLAVES];
+    uint32_t _rate[NUM_SLAVES];
     uint32_t _idle;
 } stats = {0};
 
@@ -70,6 +73,7 @@ void matrix_init(void)
    wireless_init();
    /* TX_RX_LED_INIT; */
 
+    print("\n");
    timer_init();
 
     // initialize matrix state: all keys off
@@ -129,8 +133,9 @@ uint8_t matrix_scan(void)
 #endif
 
     stats.count[pipe_num]++;
-    uint8_t ccsum = calc_checksum(aes_state[pipe_num].data, ROWS_PER_HAND);
-    if (aes_state[pipe_num].data[CHECK_SUM_POSITION] != ccsum) {
+    uint8_t checksum = calc_checksum(aes_state[pipe_num].data, ROWS_PER_HAND);
+    if (aes_state[pipe_num].data[PACKET_CHECKSUM0] != checksum ||
+        aes_state[pipe_num].data[PACKET_CHECKSUM1] != checksum ) {
       stats.bad[pipe_num]++;
     } else {
       update_device_matrix(aes_state[pipe_num].data, pipe_num);
@@ -149,20 +154,47 @@ uint8_t matrix_scan(void)
 
   uint32_t now = timer_read();
   if (now - start_time > 1000) {
+    // update counters
     start_time = now;
     seconds++;
 
+    stats.idle = stats._idle;
+    stats._idle = 0;
+
     for (int i = 0; i < NUM_SLAVES; ++i) {
-      stats.rate[i] = stats.count[i] - stats.rate[i];
+      stats.rate[i] = stats.count[i] - stats._rate[i];
+      stats._rate[i] = stats.count[i];
+
       if (disconnect_counters[i] >= DISCONNECT_TIME) {
         reset_device_matrix(i);
+        disconnect_counters[i] = 0;
+        /* #ifdef DEBUG */
+        /* print("Device: "); */
+        /* print_dec(i); */
+        /* print(" disconnected."); */
+        /* #endif */
       } else {
         disconnect_counters[i]++;
       }
     }
 
-    stats.idle = stats._idle;
-    stats._idle = 0;
+    // check nrf still working by checking some register values
+    uint8_t current_addr[RF_ADDRESS_LEN];
+    read_buf(RX_ADDR_P0, current_addr, RF_ADDRESS_LEN);
+    if (memcmp(settings.addr0, current_addr, RF_ADDRESS_LEN) != 0) {
+      #ifdef DEBUG
+        println("Master RX module error!");
+        nrf_debug_info(1);
+        println("Trying to reset...");
+      #endif
+      wireless_init();
+      _delay_ms(100);
+      #ifdef DEBUG
+        nrf_debug_info(1);
+      #endif
+    }
+
+
   #ifdef DEBUG
     print("count(L: ");
     xprintf("%06lu", stats.count[0]);
@@ -184,43 +216,10 @@ uint8_t matrix_scan(void)
     print(" timer: ");
     xprintf("%05lu", seconds);
     print("\n");
-/* #ifdef DEBUG_VERBOSE */
-    nrf_debug_info(1);
-/* #endif */
-    print("\n");
   #endif
-    for (int i = 0; i < NUM_SLAVES; ++i) {
-      stats.rate[i] = stats.count[i];
-    }
   }
 
-   /* for (int i = 0; i < 4; ++i) { */
-   /*   phex(aes_state[pipe_num]); */
-   /* } */
-   /* pbin_reverse16(matrix_get_row(row)); */
-   /* print("\n"); */
-   /* TXLED0; */
-
-   /* if( serial_transaction() ) { */
-   /*      // turn on the indicator led when halves are disconnected */
-   /*      TXLED1; */
-
-   /*      error_count++; */
-
-   /*      if (error_count > ERROR_DISCONNECT_COUNT) { */
-   /*          // reset other half if disconnected */
-   /*          int slaveOffset = (isLeftHand) ? (ROWS_PER_HAND) : 0; */
-   /*          for (int i = 0; i < ROWS_PER_HAND; ++i) { */
-   /*              matrix[slaveOffset+i] = 0; */
-   /*          } */
-   /*      } */
-   /*  } else { */
-   /*      // turn off the indicator led on no error */
-   /*      TXLED0; */
-   /*      error_count = 0; */
-   /*  } */
-
-    return 0;
+  return 0;
 }
 
 /* bool matrix_is_modified(void) */

@@ -1,4 +1,5 @@
 #include "nrf.h"
+#include "split-config.h"
 #include "nRF24L01.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -99,7 +100,7 @@ uint8_t spi_command(uint8_t command) {
 }
 
 uint8_t nrf_power_set(bool on) {
-#if MASTER_DEVICE
+#if DEVICE_ID==MASTER_DEVICE_ID
   return write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (1<<PRIM_RX));
 #else // slave
   return write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (0<<PRIM_RX));
@@ -115,7 +116,7 @@ void nrf_setup(device_settings_t *settings) {
   nrf_power_set(0);
 
 #ifdef USE_AUTO_ACK
-  #if MASTER_DEVICE
+  #if DEVICE_ID==MASTER_DEVICE_ID
     write_reg(SETUP_RETR, 0);
     write_reg(EN_AA, (1<<ENAA_P0) | (1<<ENAA_P1)); // enable auto ack, on P0,P1
   #else // slave, with auto ack
@@ -126,19 +127,21 @@ void nrf_setup(device_settings_t *settings) {
      * replacement packets at different times, or otherwise we will keep having
      * an on-air collision every time we try to retransmit. So here, we give
      * each of the slaves a differnet delay to avoid this. */
-    write_reg(SETUP_RETR, ((settings->device_num & 0x7) << ARD) |
-                          ((MAX_RETRANSMIT & 0xf)       << ARC));
+    write_reg(SETUP_RETR, ((DEVICE_ID  & 0x7) << ARD) |
+                          ((MAX_RETRANSMIT & 0xf) << ARC));
     write_reg(EN_AA, (1<<ENAA_P0)); // enable auto ack, on P0
   #endif
 #else // no auto ack
+    /* TODO: remove this mode? */
     write_reg(EN_AA, 0); // disable auto ack
     write_reg(SETUP_RETR, 0); // no auto retransmit
     features |= (1<<EN_DYN_ACK);
 #endif
 
   write_reg(RF_CH, settings->rf_channel & 0x7f);
+
   // 2mbs
-  write_reg(RF_SETUP, (0<<RF_DR_LOW) | (1<<RF_DR_HIGH) | (RF_PWR_LEVEL < RF_PWR));
+  write_reg(RF_SETUP, (0<<RF_DR_LOW) | (1<<RF_DR_HIGH) | (settings->rf_power < RF_PWR));
 
   // set address width
   switch (RF_ADDRESS_LEN) {
@@ -148,7 +151,7 @@ void nrf_setup(device_settings_t *settings) {
     default: break; //
   }
 
-#if MASTER_DEVICE
+#if DEVICE_ID==MASTER_DEVICE_ID
   uint8_t zero_addr[RF_BUFFER_LEN] = { 0 }; // debug
   write_reg(EN_RXADDR, (1<<ERX_P0) | (1<<ERX_P1)); // enable rx pipes: P0, P1
   // set rx pipe addresses
@@ -162,8 +165,8 @@ void nrf_setup(device_settings_t *settings) {
   // set slave rx addr to its tx address for auto ack
   write_reg(EN_RXADDR, (1<<ERX_P0)); // enable rx pipes: P0, P1
   write_reg(RX_PW_P0, 0);
-  uint8_t *this_addr = (settings->device_num == 0) ?
-                        settings->addr0 : settings->addr1;
+  const uint8_t *this_addr = (DEVICE_ID == 0) ? settings->addr0 :
+                                                    settings->addr1;
   write_buf(RX_ADDR_P0, this_addr, RF_ADDRESS_LEN);
   write_buf(TX_ADDR,    this_addr, RF_ADDRESS_LEN);
 #endif

@@ -9,13 +9,11 @@
 
 void crypto_init(aes_state_t *state, aes_ctx_t *ctx, device_settings_t *settings) {
   uint8_t key[16];
-  uint8_t nonce[16];
-  const uint8_t device_num = settings->device_num;
   /* TODO: generate keys for both master and slave */
   eeprom_read_block(key, EECONFIG_AES_KEY, AES_KEY_LEN);
   aes128_init(key, ctx);
 
-#if MASTER_DEVICE
+#if DEVICE_ID==MASTER_DEVICE_ID
     // do nothing, the master receives iv from slave
 #else
     // AES should use an iv that is both unique and unpredictable.
@@ -30,7 +28,7 @@ void crypto_init(aes_state_t *state, aes_ctx_t *ctx, device_settings_t *settings
     nonce_counter++;
     eeprom_update_dword(EECONFIG_NONCE_COUNTER, nonce_counter);
     /* // use different nonce for left and right hands */
-    switch (device_num) {
+    switch (DEVICE_ID) {
       case 0: nonce_counter = nonce_counter; break;
       case 1: nonce_counter = ~nonce_counter; break;
       default: break;

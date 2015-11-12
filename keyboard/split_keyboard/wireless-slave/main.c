@@ -29,16 +29,19 @@
 #define UNCHANGED_TIMEOUT 30 // 0-255 seconds
 #endif
 
-// // how many iterations the main loop can do in a second
-// NOTE: if this value is raised much higher, a different debounce algorithm
-// may be necessary.
-// WARN: this is value was measured for the current clock speeds and does
-// not control the given scan rate.
-#ifdef FAST_SCAN
-#define SCAN_RATE 340
-#else
-#define SCAN_RATE 180
+// If no keys are either presses or released in this time, the keyboard
+// will go to sleep. If something gets left on the keyboard, this value will
+// let it know when it is safe to assume nobody is using it, but it also
+// limits how long you can hold down a key for.
+#ifndef ERROR_LIMIT
+#define ERROR_LIMIT 7
 #endif
+
+// how many iterations the main loop can do in a second
+// WARN: this is value was measured for the current clock speeds and does
+// not control the given scan rate. It is used as a rough estimate of how
+// long a second is in terms of matrix scans.
+#define SCAN_RATE 180
 
 aes_ctx_t aes_ctx = { 0 };
 aes_state_t aes_state = { {0} };
@@ -58,6 +61,7 @@ void disable_unused_hardware(void) {
 }
 
 void disable_hardware(void) {
+  nrf_power_set(0);
   power_spi_disable();
 }
 
@@ -80,7 +84,8 @@ void reset_hardware(void) {
 }
 
 void slave_sleep(void) {
-  nrf_power_set(0);
+  // want to be fast on wakeup
+  clock_fast();
 
   disable_hardware();
 
@@ -91,9 +96,6 @@ void slave_sleep(void) {
   // set the matrix to fire interrupt on pin change
   matrix_interrupt_mode();
 
-  // want to be fast on wakeup
-  clock_fast();
-
   // Turn off brown out detection during sleep. Saves about 35μA in sleep mode.
   // Brown-out detection will be automatically reenabled on wake up.
   // WARN: This is a timed sequence. Have 4 clock cycles, from this point
@@ -101,14 +103,64 @@ void slave_sleep(void) {
   MCUCR = (1<<BODS) | (1<<BODSE); // special write sequence, see datasheet
   MCUCR = (1<<BODS);
   sei();
-  sleep_cpu ();
+  sleep_cpu();
   cli();
-}
 
-void slave_wakeup(void) {
   enable_hardware();
   reset_hardware();
   sei();
+}
+
+volatile static uint16_t timer2_counter = 0;
+
+ISR(TIMER2_OVF_vect) {
+  timer2_counter++;
+}
+
+void timer2_init(void) {
+  timer2_counter = 0;
+  /* TCCR1B |= (1 << CS10); */
+  TCNT2 = 0;
+  TCCR2A = 0;
+  TCCR2B = (0b110<<CS20);
+  TIMSK2 = (1<<TOIE2);
+}
+
+void slave_disconnect_pause(void) {
+  /* 255/(8000000 / 128 / 1024) = 4.17792000 */
+  /* 255/(8000000 / 128 / 512) = 2.08896000 */
+sleep_again:
+  set_sleep_mode(SLEEP_MODE_PWR_SAVE);
+  cli();
+  sleep_enable();
+
+  // use slow clock for longer sleep
+  clock_slow();
+
+  power_timer2_enable();
+  timer2_init();
+  asm("nop");
+  asm("nop");
+  asm("nop");
+  asm("nop");
+
+  sei();
+  sleep_cpu();
+  cli();
+
+  /* if (timer2_counter < 10) { */
+  /*   goto sleep_again; */
+  /* } */
+
+
+  power_timer2_disable();
+  TIMSK2 = 0;
+
+  sei();
+}
+
+void slave_disable(void) {
+  enable_hardware();
 }
 
 void setup() {
@@ -119,7 +171,6 @@ void setup() {
   _delay_ms(100); // nrf takes about this long to start from no power
   reset_hardware();
 
-  // TODO: provide key
   crypto_init(&aes_state, &aes_ctx,  &settings);
 
   sei();
@@ -130,11 +181,8 @@ int main(void) {
   uint8_t nrf_status = 0;
   uint8_t inactive_time = 0;
   uint8_t unchanged_time = 0;
-#ifdef FAST_SCAN
-  uint16_t scan_rate_counter = 0;
-#else
   uint8_t scan_rate_counter = 0;
-#endif
+  uint8_t error_rate = 0;
 
   setup();
   // send our iv to the master
@@ -147,7 +195,10 @@ int main(void) {
     // loop runs.
     matrix_scan_slow(&scan);
 
-    // see if our previous message has been sent yet.
+    if(nrf_status & (1<<TX_DS)) { // data sent, recieved ack
+        error_rate=0;
+    }
+
     if(nrf_status & (1<<MAX_RT)) {
       clock_fast();
       // last ditch effort to get our key change registered
@@ -155,6 +206,11 @@ int main(void) {
       spi_command(FLUSH_TX);
       nrf_clear_flags();
       nrf_status = 0;
+      error_rate++;
+
+      if (error_rate == ERROR_LIMIT) {
+        slave_disconnect_pause();
+      }
       clock_slow();
     }
 
@@ -168,7 +224,9 @@ int main(void) {
         aes_state.data[i] = matrix_get_row(i);
         checksum += aes_state.data[i];
       }
+
       aes_state.data[ROWS_PER_HAND] = checksum;
+      aes_state.data[ROWS_PER_HAND+1] = checksum;
 
       encrypt(&aes_state, &aes_ctx);
 
@@ -195,7 +253,6 @@ int main(void) {
         inactive_time = 0;
         unchanged_time = 0;
         slave_sleep();
-        slave_wakeup();
       }
 
       inactive_time++;

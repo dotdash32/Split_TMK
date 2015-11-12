@@ -20,7 +20,8 @@
         NO_GUI                   :<input type="checkbox" id="k4"/> </br>
         SWAP_GRAVE_ESC           :<input type="checkbox" id="k5"/> </br>
         SWAP_BACKSLASH_BACKSPACE :<input type="checkbox" id="k6"/> </br>
-        NKRO                     :<input type="checkbox" id="k7"/> </br>
+        NKRO                     :<input type="checkbox" id="k6"/> </br>
+        <br />
       <strong>Debug:</strong>
         ENABLE  :<input type="checkbox" id="d0"/>
         MATRIX  :<input type="checkbox" id="d1"/>
@@ -37,21 +38,17 @@
         6:<input type="checkbox" id="l6"/>
         7:<input type="checkbox" id="l7"/>
       </br>
-        <strong>Backlight:</strong><input type="text" id="backlight"/>
-      </br>
-        <strong>Mouse Key Acceleration:</strong><input type="text" id="mouseaccel"/>
-      </br>
+      <strong>Backlight:</strong><input type="text" id="backlight"/> </br>
+      <strong>Mouse Key Acceleration:</strong><input type="text" id="mouseaccel"/> </br>
       <button type="button" onclick="updateSettings()">Generate</button>
       <h2>Wireless Settings:</h2>
-      <p id="rf"></p>
-      (Note: if you only want to update tmk boot magic settings, only copy
-      the first line of the generated files.)
-    <h2>eeprom-left.eep</h2>
-    <textarea id="left"
-              rows="10"
-              cols="50"></textarea>
-    <h2>eeprom-right.eep</h2>
-    <textarea id="right"
+        <strong>RF Power:</strong><input type="text" value="3" id="rf_power"/> </br>
+      <h3>Generated:</h3>
+        <p id="rf"></p>
+        <!-- (Note: if you only want to update tmk boot magic settings, only copy -->
+        <!-- the first line of the generated files.) -->
+    <h2>eeprom-wireless.eep</h2>
+    <textarea id="output"
               rows="10"
               cols="50"></textarea>
     </br>

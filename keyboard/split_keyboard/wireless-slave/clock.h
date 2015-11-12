@@ -8,18 +8,10 @@
 
 #if F_OSC==16000000
   #define FAST_SPEED_DIV clock_div_8
-  #ifdef FAST_SCAN
-    #define SLOW_SPEED_DIV clock_div_128
-  #else
-    #define SLOW_SPEED_DIV clock_div_256
-  #endif
+  #define SLOW_SPEED_DIV clock_div_256
 #elif F_OSC==8000000
   #define FAST_SPEED_DIV clock_div_4
-  #ifdef FAST_SCAN
-    #define SLOW_SPEED_DIV clock_div_64
-  #else
-    #define SLOW_SPEED_DIV clock_div_128
-  #endif
+  #define SLOW_SPEED_DIV clock_div_128
 #endif
 
 #define clock_delay_slow_us(X) _delay_us(X / (1 << (SLOW_SPEED_DIV-FAST_SPEED_DIV)))

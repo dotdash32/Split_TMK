@@ -29,6 +29,8 @@ enum function_id {
 #define AC_PROMICRO_PROGRAM  ACTION_FUNCTION_TAP(PROMICRO_PROGRAM)
 #define AC_PROMICRO_RESET    ACTION_FUNCTION_TAP(PROMICRO_RESET)
 
+#define INVERSE_COLEMAK
+
 const uint16_t PROGMEM actionmaps[][MATRIX_ROWS][MATRIX_COLS] = {
     /* qwerty */
     [0] = ACTIONMAP(
@@ -36,13 +38,28 @@ const uint16_t PROGMEM actionmaps[][MATRIX_ROWS][MATRIX_COLS] = {
             TAB     , Q   , W    , E   , R   , T ,
             SFT_ENT , A   , S    , D   , F   , G ,
             LALT    , Z   , X    , C   , V   , B ,
-            NO      , FN3 , LCTL , SPC , FN2 ,
+            FN0     , FN3 , LCTL , SPC , FN2 ,
         /* right hand */
             Y    , U    , I    , O    , P    , MINS ,
             H    , J    , K    , L    , SCLN , QUOT ,
-            N    , M    , COMM , DOT  , SLSH , FN0  ,
-            BSPC , SSFT , FN1  , LGUI , NO
+            N    , M    , COMM , DOT  , SLSH , GRV ,
+            BSPC , SSFT , FN1  , LGUI , FN0
     ),
+#ifdef INVERSE_COLEMAK
+    /* inverse colemak */
+    [1] = ACTIONMAP(
+        /* left hand */
+            TRNS , Q    , W    , K    , S    , F ,
+            TRNS , A    , D    , G    , E    , T ,
+            TRNS , Z    , X    , C    , V    , B ,
+            TRNS , TRNS , TRNS , TRNS , TRNS ,
+        /* right hand */
+            O    , I    , L    , SCLN , R    , MINS ,
+            H    , Y    , N    , U    , P    , QUOT ,
+            J    , M    , COMM , DOT  , SLSH , GRV ,
+            TRNS , TRNS , TRNS , TRNS , TRNS
+    ),
+#else
     /* dvorak */
     [1] = ACTIONMAP(
         /* left hand */
@@ -53,9 +70,10 @@ const uint16_t PROGMEM actionmaps[][MATRIX_ROWS][MATRIX_COLS] = {
         /* right hand */
             F    , G    , C    , R    , L    , SLSH ,
             D    , H    , T    , N    , S    , MINS ,
-            B    , M    , W    , V    , Z    , TRNS  ,
+            B    , M    , W    , V    , Z    , GRV  ,
             TRNS , TRNS , TRNS , TRNS , TRNS
     ),
+#endif
     /* colemak */
     [2] = ACTIONMAP(
         /* left hand */
@@ -66,21 +84,21 @@ const uint16_t PROGMEM actionmaps[][MATRIX_ROWS][MATRIX_COLS] = {
         /* right hand */
             J    , L    , U    , Y    , SCLN , MINS ,
             H    , N    , E    , I    , O    , QUOT ,
-            K    , M    , COMM , DOT  , SLSH , TRNS ,
+            K    , M    , COMM , DOT  , SLSH , GRV ,
             TRNS , TRNS , TRNS , TRNS , TRNS
    ),
    /* symbol */
    [3] = ACTIONMAP(
        /* left hand */
-            TRNS , GRV  , 2    , 3    , 4    , 5       ,
-            TRNS , 1    , BSLS , s(9) , LBRC , s(LBRC) ,
-            TRNS , s(1) , s(2) , s(3) , s(4) , s(5)    ,
-            TRNS , TRNS , TRNS , TRNS , TRNS ,
+            TRNS , s(BSLS) , 2    , 3    , 4    , 5       ,
+            TRNS , 1       , BSLS , s(9) , LBRC , s(LBRC) ,
+            TRNS , s(1)    , s(2) , s(3) , s(4) , s(5)    ,
+            TRNS , TRNS    , TRNS , TRNS , TRNS ,
         /* right hand */
-            6       , 7    , 8    , 9      , s(EQL)  , MINS   ,
-            s(RBRC) , RBRC , s(0) , EQL    , 0       , s(GRV) ,
-            s(6)    , s(7) , s(8) , DOT    , s(BSLS) , FN0    ,
-            TRNS    , TRNS , TRNS , TRNS   , TRNS
+            6       , 7    , 8    , 9    , s(EQL) , MINS   ,
+            s(RBRC) , RBRC , s(0) , EQL  , 0      , s(8)   ,
+            s(6)    , s(7) , COMM , DOT  , SLSH   , s(GRV) ,
+            TRNS    , TRNS , TRNS , TRNS , TRNS
     ),
     /* fn */
     [4] = ACTIONMAP(
@@ -92,7 +110,7 @@ const uint16_t PROGMEM actionmaps[][MATRIX_ROWS][MATRIX_COLS] = {
         /* right hand */
             c(PGUP) , c(HOME) , c(UP)   , c(END)  , c(DEL)  , F12 ,
             c(PGDN) , c(LEFT) , c(DOWN) , c(RGHT) , c(BSPC) , F11 ,
-            F6      , F7      , F8      , F9      , F10     , FN0 ,
+            F6      , F7      , F8      , F9      , F10     , F13 ,
             TRNS    , TRNS    , TRNS    , TRNS    , TRNS
         ),
     /* media */
@@ -104,7 +122,7 @@ const uint16_t PROGMEM actionmaps[][MATRIX_ROWS][MATRIX_COLS] = {
             TRNS , TRNS , TRNS , TRNS , TRNS   ,
         /* right hand */
             WH_U , BTN1   , MS_U   , BTN2    , NO   , PROMICRO_PROGRAM  ,
-            WH_D , MS_L   , MS_D   , MS_R    , NO   , PROMICRO_RESET  ,
+            WH_D , MS_L   , MS_D   , MS_R    , BTN3 , PROMICRO_RESET  ,
             NO   , QWERTY , DVORAK , COLEMAK , NO   , FN0 ,
             TRNS , TRNS   , TRNS   , TRNS    , TRNS
     ),
