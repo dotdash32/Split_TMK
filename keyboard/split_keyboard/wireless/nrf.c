@@ -127,7 +127,7 @@ void nrf_setup(device_settings_t *settings) {
      * replacement packets at different times, or otherwise we will keep having
      * an on-air collision every time we try to retransmit. So here, we give
      * each of the slaves a differnet delay to avoid this. */
-    write_reg(SETUP_RETR, ((DEVICE_ID  & 0x7) << ARD) |
+    write_reg(SETUP_RETR, (((DEVICE_ID+2)  & 0x7) << ARD) |
                           ((MAX_RETRANSMIT & 0xf) << ARC));
     write_reg(EN_AA, (1<<ENAA_P0)); // enable auto ack, on P0
   #endif
@@ -141,7 +141,8 @@ void nrf_setup(device_settings_t *settings) {
   write_reg(RF_CH, settings->rf_channel & 0x7f);
 
   // 2mbs
-  write_reg(RF_SETUP, (0<<RF_DR_LOW) | (1<<RF_DR_HIGH) | (settings->rf_power < RF_PWR));
+  write_reg(RF_SETUP, (0<<RF_DR_LOW) | (1<<RF_DR_HIGH) |
+                      ((settings->rf_power & 0x3) < RF_PWR));
 
   // set address width
   switch (RF_ADDRESS_LEN) {
@@ -205,14 +206,14 @@ uint8_t nrf_clear_flags(void) {
 
 void nrf_send_one(void) {
   ce(1);
-  _delay_us(10); // need to hold CE for at least 10μs
+  _delay_us(15); // need to hold CE for at least 10μs
   ce(0);
 }
 
 uint8_t nrf_send_all(void) {
   uint8_t status;
   ce(1);
-  _delay_us(10);
+  _delay_us(15);
   while( !((status = read_reg(FIFO_STATUS)) & (1<<TX_EMPTY)) &&
          !((status = read_reg(NRF_STATUS)) & (1<<MAX_RT)) );
   ce(0);

@@ -2,7 +2,6 @@
 #include <util/delay.h>
 #include <string.h>
 #include "debug.h"
-#include "matrix-wireless.h"
 #include "matrix.h"
 #include "print.h"
 #include "pro-micro.h"
@@ -16,16 +15,19 @@
 static matrix_row_t matrix[MATRIX_ROWS];
 
 struct package_stats_t {
-    uint32_t idle;
+    uint16_t idle;
+    uint16_t bad[NUM_SLAVES];
+    uint16_t miss[NUM_SLAVES];
+    uint16_t rate[NUM_SLAVES];
     uint32_t count[NUM_SLAVES];
-    uint32_t bad[NUM_SLAVES];
-    uint32_t rate[NUM_SLAVES];
+    uint32_t _last[NUM_SLAVES];
     uint32_t _rate[NUM_SLAVES];
     uint32_t _idle;
 } stats = {0};
 
 static aes_ctx_t aes_ctx = { 0 };
-static aes_state_t aes_state[2] = { 0 };
+/* static aes_state_t aes_state[2] = { 0 }; */
+static ecb_state_t ecb_state[2] = { 0 };
 static device_settings_t settings;
 
 inline
@@ -51,7 +53,12 @@ void matrix_setup(void) {
     /* print_hex_buf(key, 16); */
     /* print("\n"); */
 
-    crypto_init(aes_state, &aes_ctx, &settings);
+    /* crypto_init(aes_state, &aes_ctx, &settings); */
+
+    crypto_init(&aes_ctx);
+    for (int i = 0; i < NUM_SLAVES; ++i) {
+      ecb_init(&ecb_state[i], i);
+    }
 
     /* if (!has_usb()) { */
     /*     keyboard_slave_loop(); */
@@ -113,42 +120,58 @@ static uint8_t disconnect_counters[2] = { 0 };
 
 uint8_t matrix_scan(void)
 {
-  int num_processed = 0;
+  bool is_idle = true;
+
   int pipe_num = nrf_rx_pipe_number();
   while( pipe_num < NUM_SLAVES ) {
-    nrf_read_rx_fifo(aes_state[pipe_num].data, RF_BUFFER_LEN);
+    uint8_t buf[AES_BUF_LEN];
+    nrf_read_rx_fifo(buf, AES_BUF_LEN);
 
 #ifdef DEBUG_VERBOSE
     print_dec(pipe_num);
     print(": ");
-    print_hex_buf(aes_state[pipe_num].data, 16);
+    print_hex_buf(buf, AES_BUF_LEN);
 #endif
 
-    decrypt(&aes_state[pipe_num], &aes_ctx);
+    /* decrypt(&aes_state[pipe_num], &aes_ctx); */
+    uint8_t err = ecb_decrypt(&ecb_state[pipe_num], &aes_ctx, buf);
 
 #ifdef DEBUG_VERBOSE
     print(" => ");
-    print_hex_buf(aes_state[pipe_num].data, 16);
+    aes128_dec(buf, &aes_ctx);
+    print_hex_buf(buf, AES_BUF_LEN);
+    print(" err: ");
+    phex(err);
     print("\n");
 #endif
 
+    is_idle = false;
     stats.count[pipe_num]++;
-    uint8_t checksum = calc_checksum(aes_state[pipe_num].data, ROWS_PER_HAND);
-    if (aes_state[pipe_num].data[PACKET_CHECKSUM0] != checksum ||
-        aes_state[pipe_num].data[PACKET_CHECKSUM1] != checksum ) {
+    /* uint8_t checksum = calc_checksum(aes_state[pipe_num].data, ROWS_PER_HAND); */
+    /* if (aes_state[pipe_num].data[PACKET_CHECKSUM0] != checksum || */
+    /*     aes_state[pipe_num].data[PACKET_CHECKSUM1] != checksum ) { */
+    /*   stats.bad[pipe_num]++; */
+    /* } else { */
+    /*   update_device_matrix(aes_state[pipe_num].data, pipe_num); */
+    /*   disconnect_counters[pipe_num] = 0; */
+    /* } */
+    if (err) {
       stats.bad[pipe_num]++;
     } else {
-      update_device_matrix(aes_state[pipe_num].data, pipe_num);
+      update_device_matrix(ecb_state[pipe_num].payload, pipe_num);
+      const uint32_t msg_id = ecb_state[pipe_num].message_id;
+      if ( msg_id - stats._last[pipe_num] != 1 ) {
+        stats.miss[pipe_num]++;
+      }
+      stats._last[pipe_num] = msg_id;
       disconnect_counters[pipe_num] = 0;
     }
-
-    num_processed++;
 
     // check again
     pipe_num = nrf_rx_pipe_number();
   }
 
-  if (num_processed == 0) {
+  if (is_idle) {
     stats._idle++;
   }
 
@@ -198,21 +221,26 @@ uint8_t matrix_scan(void)
   #ifdef DEBUG
     print("count(L: ");
     xprintf("%06lu", stats.count[0]);
-    print(" , R: ");
+    print(", R: ");
     xprintf("%06lu", stats.count[1]);
     print(")");
+    print(" miss(L: ");
+    xprintf("%04u", stats.miss[0]);
+    print(", R: ");
+    xprintf("%04u", stats.miss[1]);
+    print(")");
     print(" bad(L: ");
-    xprintf("%04lu", stats.bad[0]);
-    print(" , R: ");
-    xprintf("%04lu", stats.bad[1]);
+    xprintf("%04u", stats.bad[0]);
+    print(", R: ");
+    xprintf("%04u", stats.bad[1]);
     print(")");
     print(" rate(L: ");
-    xprintf("%03lu", stats.rate[0]);
+    xprintf("%03u", stats.rate[0]);
     print(", R: ");
-    xprintf("%03lu", stats.rate[1]);
+    xprintf("%03u", stats.rate[1]);
     print(")");
     print(" idle: ");
-    xprintf("%05lu", stats.idle);
+    xprintf("%05u", stats.idle);
     print(" timer: ");
     xprintf("%05lu", seconds);
     print("\n");

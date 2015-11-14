@@ -127,14 +127,19 @@ static void  init_cols(void)
 static matrix_row_t read_cols(void)
 {
 #if DEVICE_ID==0
-  return (~PINC & 0b00111111);
+  return (PINC&(1<<0) ? 0 : (1<<0)) |
+         (PINC&(1<<1) ? 0 : (1<<1)) |
+         (PINC&(1<<2) ? 0 : (1<<2)) |
+         (PINC&(1<<3) ? 0 : (1<<3)) |
+         (PINC&(1<<4) ? 0 : (1<<4)) |
+         (PINC&(1<<5) ? 0 : (1<<5));
 #elif DEVICE_ID==1
   return (PINC&(1<<0) ? 0 : (1<<5)) |
-    (PINC&(1<<1) ? 0 : (1<<4)) |
-    (PINC&(1<<2) ? 0 : (1<<3)) |
-    (PINC&(1<<3) ? 0 : (1<<2)) |
-    (PINC&(1<<4) ? 0 : (1<<1)) |
-    (PINC&(1<<5) ? 0 : (1<<0));
+         (PINC&(1<<1) ? 0 : (1<<4)) |
+         (PINC&(1<<2) ? 0 : (1<<3)) |
+         (PINC&(1<<3) ? 0 : (1<<2)) |
+         (PINC&(1<<4) ? 0 : (1<<1)) |
+         (PINC&(1<<5) ? 0 : (1<<0));
 #endif
 }
 
@@ -167,7 +172,7 @@ static void select_row(uint8_t row)
   DDRD  |= (1<<row);
   PORTD &= ~(1<<row);
 #elif DEVICE_ID==1
-  DDRD  |= (1<<3-row);
-  PORTD &= ~(1<<3-row);
+  DDRD  |= (1<<(3-row));
+  PORTD &= ~(1<<(3-row));
 #endif
 }

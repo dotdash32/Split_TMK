@@ -5,10 +5,13 @@
 
 #define EECONFIG_AES_KEY       (uint8_t*)  0x0010 // 16 bytes
 #define EECONFIG_NONCE_COUNTER (uint32_t*) 0x0020 // 4  bytes
+#define EECONFIG_MESSAGE_ID0   (uint32_t*) 0x0020 // 4  bytes
+/* #define EECONFIG_SESSION_ID0   (uint16_t*) 0x0020 // 2  bytes */
+/* #define EECONFIG_SESSION_ID1   (uint16_t*) 0x0022 // 2  bytes */
 
 #define EECONFIG_RF_POWER      (uint8_t*)  0x0024 // 1 byte
 #define EECONFIG_RF_CHANNEL    (uint8_t*)  0x0025 // 1 byte
-/* #define EECONFIG_RF_POWE       (uint8_t*)  0x0024 // 1 byte */
+#define EECONFIG_MESSAGE_ID1   (uint32_t*) 0x0026 // 4  bytes
 
 #define EECONFIG_DEVICE_ADDR_0 (uint8_t*)  0x0030 // 5  bytes
 #define EECONFIG_DEVICE_ADDR_1 (uint8_t*)  0x0035 // 5  bytes

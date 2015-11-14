@@ -69,6 +69,6 @@ set-fuses:
 # program-right: program DEVICE_NUMBER=1
 
 program: all
-	$(PROGRAM_CMD) \
-		-U eeprom:w:$(EEPROM_FILE):i \
-		-U flash:w:build-uno/wireless-slave.hex:i
+	$(PROGRAM_CMD) -U flash:w:build-uno/wireless-slave.hex:i
+	sleep 1
+	$(PROGRAM_CMD) -U eeprom:w:$(EEPROM_FILE):i

@@ -41,10 +41,10 @@
 // WARN: this is value was measured for the current clock speeds and does
 // not control the given scan rate. It is used as a rough estimate of how
 // long a second is in terms of matrix scans.
-#define SCAN_RATE 180
+#define SCAN_RATE 130
 
 aes_ctx_t aes_ctx = { 0 };
-aes_state_t aes_state = { {0} };
+ecb_state_t ecb_state = { {0} };
 device_settings_t settings = { 0 };
 
 void disable_unused_hardware(void) {
@@ -171,7 +171,10 @@ void setup() {
   _delay_ms(100); // nrf takes about this long to start from no power
   reset_hardware();
 
-  crypto_init(&aes_state, &aes_ctx,  &settings);
+  /* crypto_init(&aes_state, &aes_ctx,  &settings); */
+
+  crypto_init(&aes_ctx);
+  ecb_init(&ecb_state, DEVICE_ID);
 
   sei();
 }
@@ -186,8 +189,10 @@ int main(void) {
 
   setup();
   // send our iv to the master
-  nrf_status = nrf_load_tx_fifo(aes_state.iv, RF_BUFFER_LEN);
-  nrf_send_one();
+  /* nrf_status = nrf_load_tx_fifo(aes_state.iv, RF_BUFFER_LEN); */
+  /* nrf_send_one(); */
+  /* nrf_status = nrf_load_tx_fifo(aes_state.iv, RF_BUFFER_LEN); */
+  /* nrf_send_one(); */
   clock_slow();
 
   while(1) {
@@ -195,22 +200,22 @@ int main(void) {
     // loop runs.
     matrix_scan_slow(&scan);
 
-    if(nrf_status & (1<<TX_DS)) { // data sent, recieved ack
-        error_rate=0;
-    }
+    /* if(nrf_status & (1<<TX_DS)) { // data sent, recieved ack */
+    /*     error_rate=0; */
+    /* } */
 
     if(nrf_status & (1<<MAX_RT)) {
       clock_fast();
-      // last ditch effort to get our key change registered
       nrf_send_all();
+      clock_delay_fast_ms(1);
       spi_command(FLUSH_TX);
       nrf_clear_flags();
       nrf_status = 0;
-      error_rate++;
 
-      if (error_rate == ERROR_LIMIT) {
-        slave_disconnect_pause();
-      }
+      /* error_rate++; */
+      /* if (error_rate == ERROR_LIMIT) { */
+      /*   slave_disconnect_pause(); */
+      /* } */
       clock_slow();
     }
 
@@ -219,18 +224,25 @@ int main(void) {
     if (scan.changed || should_ping) {
       clock_fast();
 
-      uint8_t checksum = 0;
+      /* uint8_t checksum = 0; */
+      /* for (int i = 0; i < ROWS_PER_HAND; ++i) { */
+      /*   aes_state.data[i] = matrix_get_row(i); */
+      /*   checksum += aes_state.data[i]; */
+      /* } */
+
+      /* aes_state.data[ROWS_PER_HAND] = checksum; */
+      /* aes_state.data[ROWS_PER_HAND+1] = checksum; */
+
+      /* encrypt(&aes_state, &aes_ctx); */
+
       for (int i = 0; i < ROWS_PER_HAND; ++i) {
-        aes_state.data[i] = matrix_get_row(i);
-        checksum += aes_state.data[i];
+        ecb_state.payload[i] = matrix_get_row(i);
       }
 
-      aes_state.data[ROWS_PER_HAND] = checksum;
-      aes_state.data[ROWS_PER_HAND+1] = checksum;
+      uint8_t encrypted_data[AES_BUF_LEN];
+      ecb_encrypt(&ecb_state, &aes_ctx, encrypted_data);
 
-      encrypt(&aes_state, &aes_ctx);
-
-      nrf_status = nrf_load_tx_fifo(aes_state.data, RF_BUFFER_LEN);
+      nrf_status = nrf_load_tx_fifo(encrypted_data, RF_BUFFER_LEN);
       nrf_send_one();
 
       if(scan.changed) {
