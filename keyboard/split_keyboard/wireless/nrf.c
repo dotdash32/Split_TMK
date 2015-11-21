@@ -3,6 +3,7 @@
 #include "nRF24L01.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/eeprom.h>
 #include <util/delay.h>
 
 #define CREATE_BIT_SETTER(func, port, port_bit) \
@@ -22,7 +23,7 @@
   } \
 
 #if defined(__AVR_ATmega32U4__)
-CREATE_BIT_SETTER(ce, F, CE);
+CREATE_BIT_SETTER(ce, B, CE);
 CREATE_BIT_SETTER(csn, B, CSN);
 #elif defined(__AVR_ATmega328P__)
 CREATE_BIT_SETTER(ce, B, CE);
@@ -34,7 +35,7 @@ void nrf_enable(uint8_t val) {
   ce(val);
 }
 
-void spi_setup(bool double_speed) {
+void spi_setup(void) {
   /* TODO: change this define to an appropriate one for the promicro */
 #if defined(__AVR_ATmega32U4__)
   // SS(B0) is connected to the led on the pro micro so we can reach it.
@@ -49,10 +50,8 @@ void spi_setup(bool double_speed) {
   ce(0);
 
   // nrf supports 10Mbs on spi
-  /* SPCR = (1<<SPI2X) | (1<<SPE) | (1<<MSTR); */
-  // setup spi with: msb, mode0
-  // clk/4 or clk/2 based on if double_speed
-  SPCR = (double_speed<<SPI2X) | (1<<SPE) | (1<<MSTR);
+  // setup spi with: msb, mode0, clk/2
+  SPCR = (1<<SPI2X) | (1<<SPE) | (1<<MSTR);
 }
 
 uint8_t spi_transceive(uint8_t data) {
@@ -99,23 +98,47 @@ uint8_t spi_command(uint8_t command) {
   return status;
 }
 
+void load_eeprom_settings(device_settings_t *settings) {
+   settings->rf_power     = eeprom_read_byte(EECONFIG_RF_POWER) & 0x03;
+   settings->rf_channel   = eeprom_read_byte(EECONFIG_RF_CHANNEL) & 0x7f;
+   switch (eeprom_read_byte(EECONFIG_RF_DATA_RATE)) {
+      case 0: settings->rf_data_rate = NRF_250KBS; break;
+      case 1: settings->rf_data_rate = NRF_1MBS; break;
+      case 2: settings->rf_data_rate = NRF_2MBS; break;
+      default: settings->rf_data_rate = NRF_2MBS;
+   }
+   /* settings->rf_data_rate = NRF_2MBS; */
+
+   /* // set address width */
+   /* switch (eeprom_read_byte(EECONFIG_RF_ADDRESS_LEN)) { */
+   /*    /1* case 2: write_reg(SETUP_AW, 0x0); break; *1/ */
+   /*    case 3: write_reg(SETUP_AW, 0x1); break; */
+   /*    case 4: write_reg(SETUP_AW, 0x2); break; */
+   /*    case 5: write_reg(SETUP_AW, 0x3); break; */
+   /*    default: write_reg(SETUP_AW, 0x3); break; */
+   /* } */
+
+   eeprom_read_block(settings->addr0, EECONFIG_DEVICE_ADDR_0, 5);
+   eeprom_read_block(settings->addr1, EECONFIG_DEVICE_ADDR_1, 5);
+}
+
+uint8_t nrf_clear_flags(void) {
+  return write_reg(NRF_STATUS, 0x70);
+}
+
+// CRC = 1 byte
 uint8_t nrf_power_set(bool on) {
 #if DEVICE_ID==MASTER_DEVICE_ID
-  return write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (1<<PRIM_RX));
+  return write_reg(CONFIG, (0<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (1<<PRIM_RX));
 #else // slave
-  return write_reg(CONFIG, (1<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (0<<PRIM_RX));
+  return write_reg(CONFIG, (0<<CRCO) | (1<<EN_CRC) | (on<<PWR_UP) | (0<<PRIM_RX));
 #endif
 }
 
 /* TODO: add rf channel customization */
 void nrf_setup(device_settings_t *settings) {
-  /* TODO: move to program memory */
-  /* TODO: add configuration */
-  uint8_t features = 0;
-
   nrf_power_set(0);
 
-#ifdef USE_AUTO_ACK
   #if DEVICE_ID==MASTER_DEVICE_ID
     write_reg(SETUP_RETR, 0);
     write_reg(EN_AA, (1<<ENAA_P0) | (1<<ENAA_P1)); // enable auto ack, on P0,P1
@@ -127,22 +150,15 @@ void nrf_setup(device_settings_t *settings) {
      * replacement packets at different times, or otherwise we will keep having
      * an on-air collision every time we try to retransmit. So here, we give
      * each of the slaves a differnet delay to avoid this. */
-    write_reg(SETUP_RETR, (((DEVICE_ID+2)  & 0x7) << ARD) |
-                          ((MAX_RETRANSMIT & 0xf) << ARC));
+    write_reg(SETUP_RETR, (((DEVICE_ID) & 0x7) << ARD) | ((RF_MAX_RETRANSMIT & 0xf) << ARC));
     write_reg(EN_AA, (1<<ENAA_P0)); // enable auto ack, on P0
   #endif
-#else // no auto ack
-    /* TODO: remove this mode? */
-    write_reg(EN_AA, 0); // disable auto ack
-    write_reg(SETUP_RETR, 0); // no auto retransmit
-    features |= (1<<EN_DYN_ACK);
-#endif
 
   write_reg(RF_CH, settings->rf_channel & 0x7f);
+  write_reg(RF_SETUP, settings->rf_data_rate |
+                      ((settings->rf_power & 0x3) << RF_PWR_LOW));
 
-  // 2mbs
-  write_reg(RF_SETUP, (0<<RF_DR_LOW) | (1<<RF_DR_HIGH) |
-                      ((settings->rf_power & 0x3) < RF_PWR));
+  /* write_reg(SETUP_AW, settings->rf_address_len); */
 
   // set address width
   switch (RF_ADDRESS_LEN) {
@@ -174,7 +190,7 @@ void nrf_setup(device_settings_t *settings) {
 
   // misc features
   write_reg(DYNPD, 0);
-  write_reg(FEATURE, features);
+  write_reg(FEATURE, 0);
 
   // empty the buffers
   spi_command(FLUSH_RX);
@@ -188,11 +204,7 @@ void nrf_setup(device_settings_t *settings) {
 uint8_t nrf_load_tx_fifo(uint8_t *buf, uint8_t len) {
   uint8_t status;
   csn(0);
-#ifdef USE_AUTO_ACK
-    status = spi_transceive(W_TX_PAYLOAD);
-#else
-    status = spi_transceive(W_TX_PAYLOAD_NO_ACK);
-#endif
+  status = spi_transceive(W_TX_PAYLOAD);
   for (int i=0; i < len; ++i) {
     spi_transceive(buf[i]);
   }
@@ -200,20 +212,16 @@ uint8_t nrf_load_tx_fifo(uint8_t *buf, uint8_t len) {
   return status;
 }
 
-uint8_t nrf_clear_flags(void) {
-  return write_reg(NRF_STATUS, 0x70);
-}
-
 void nrf_send_one(void) {
   ce(1);
-  _delay_us(15); // need to hold CE for at least 10μs
+  _delay_us(11); // need to hold CE for at least 10μs
   ce(0);
 }
 
 uint8_t nrf_send_all(void) {
   uint8_t status;
   ce(1);
-  _delay_us(15);
+  _delay_us(11);
   while( !((status = read_reg(FIFO_STATUS)) & (1<<TX_EMPTY)) &&
          !((status = read_reg(NRF_STATUS)) & (1<<MAX_RT)) );
   ce(0);

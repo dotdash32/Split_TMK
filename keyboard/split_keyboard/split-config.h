@@ -1,21 +1,21 @@
 #ifndef EECONFIG_H_MKEYEMUZ
 #define EECONFIG_H_MKEYEMUZ
 
-#define EECONFIG_BOOTMAGIC_END (uint8_t *) 0x0007
+#define EECONFIG_BOOTMAGIC_END  (uint8_t*)  0x0007
 
-#define EECONFIG_AES_KEY       (uint8_t*)  0x0010 // 16 bytes
-#define EECONFIG_NONCE_COUNTER (uint32_t*) 0x0020 // 4  bytes
-#define EECONFIG_MESSAGE_ID0   (uint32_t*) 0x0020 // 4  bytes
-/* #define EECONFIG_SESSION_ID0   (uint16_t*) 0x0020 // 2  bytes */
-/* #define EECONFIG_SESSION_ID1   (uint16_t*) 0x0022 // 2  bytes */
+#define EECONFIG_AES_KEY        (uint8_t*)  0x0010 // 16 bytes
 
-#define EECONFIG_RF_POWER      (uint8_t*)  0x0024 // 1 byte
-#define EECONFIG_RF_CHANNEL    (uint8_t*)  0x0025 // 1 byte
-#define EECONFIG_MESSAGE_ID1   (uint32_t*) 0x0026 // 4  bytes
+#define EECONFIG_RF_POWER       (uint8_t*)  0x0020 // 1 byte
+#define EECONFIG_RF_CHANNEL     (uint8_t*)  0x0021 // 1 byte
+#define EECONFIG_RF_DATA_RATE   (uint8_t*)  0x0022 // 1 byte
+#define EECONFIG_RF_ADDRESS_LEN (uint8_t*)  0x0023 // 1 byte
 
-#define EECONFIG_DEVICE_ADDR_0 (uint8_t*)  0x0030 // 5  bytes
-#define EECONFIG_DEVICE_ADDR_1 (uint8_t*)  0x0035 // 5  bytes
+#define EECONFIG_MESSAGE_ID0    (uint32_t*) 0x0028 // 4  bytes
+#define EECONFIG_MESSAGE_ID1    (uint32_t*) 0x002C // 4  bytes
 
+/* #define EECONFIG_NONCE_COUNTER (uint32_t*) 0x0028 // 4  bytes */
+#define EECONFIG_DEVICE_ADDR_0  (uint8_t*)  0x0030 // 5  bytes
+#define EECONFIG_DEVICE_ADDR_1  (uint8_t*)  0x0035 // 5  bytes
 // affects last byte of addr_2, see nrf24l0 datasheet
 // #define EECONFIG_DEVICE_ADDR_2 (uint8_t*)0x0036 // 1  bytes
 // #define EECONFIG_DEVICE_ADDR_3 (uint8_t*)0x0037 // 1  bytes
@@ -32,11 +32,6 @@
 #ifdef WIRED
 #define SLAVE_I2C_ADDRESS 0x32
 #endif
-
-#define PACKET_CHECKSUM0 ROWS_PER_HAND
-#define PACKET_CHECKSUM1 (ROWS_PER_HAND+1)
-
-#define RF_PWR_LEVEL   3 // 0-3 ((-18 + x*6) dBm)
 
 // If the master doesn't receive a response from a slave in this time,
 // it will consider it disconnected, and reset its key state.

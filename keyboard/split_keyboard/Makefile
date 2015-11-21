@@ -51,7 +51,6 @@ TARGET_DIR = .
 SRC =	\
 	led.c \
 	matrix.c \
-	split-util.c \
 	wired/i2c.c \
 	wired/serial.c \
 	wireless/crypto.c \
@@ -126,6 +125,8 @@ OPT_DEFS += -DSPACE_ON_LEFT_HALF
 # OPT_DEFS += -DUSE_I2C
 
 OPT_DEFS += -DUSE_AUTO_ACK -DDEVICE_ID=0xff
+OPT_DEFS += -DCE=6
+OPT_DEFS += -DCSN=5
 OPT_DEFS += -DDEBUG
 OPT_DEFS += -DDEBUG_VERBOSE
 

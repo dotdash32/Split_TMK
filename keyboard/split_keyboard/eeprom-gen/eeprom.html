@@ -40,9 +40,22 @@
       </br>
       <strong>Backlight:</strong><input type="text" id="backlight"/> </br>
       <strong>Mouse Key Acceleration:</strong><input type="text" id="mouseaccel"/> </br>
-      <button type="button" onclick="updateSettings()">Generate</button>
       <h2>Wireless Settings:</h2>
         <strong>RF Power:</strong><input type="text" value="3" id="rf_power"/> </br>
+        <strong>RF Data Rate:</strong>
+        <form>
+          <input type="radio" name="rf_data_rate" value="0"/>250kbs
+          <input type="radio" name="rf_data_rate" value="1"/>1Mbs
+          <input type="radio" name="rf_data_rate" value="2" checked/>2Mbs
+        </form>
+        <strong>RF Address Length:</strong>
+        <form>
+          <input type="radio" name="rf_address_len" value="3" checked/>3
+          <input type="radio" name="rf_address_len" value="4"/>4
+          <input type="radio" name="rf_address_len" value="5"/>5
+        </form>
+          </br>
+        <button type="button" onclick="updateSettings()">Update</button>
       <h3>Generated:</h3>
         <p id="rf"></p>
         <!-- (Note: if you only want to update tmk boot magic settings, only copy -->

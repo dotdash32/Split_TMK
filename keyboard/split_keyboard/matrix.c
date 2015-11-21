@@ -5,7 +5,6 @@
 #include "matrix.h"
 #include "print.h"
 #include "pro-micro.h"
-#include "split-util.h"
 #include "timer.h"
 #include "wireless/crypto.h"
 #include "wireless/nrf.h"
@@ -67,7 +66,7 @@ void matrix_setup(void) {
 
 void wireless_init(void) {
   power_spi_enable();
-  spi_setup(false);
+  spi_setup();
   nrf_setup(&settings);
   nrf_enable(true);
 }
@@ -216,6 +215,12 @@ uint8_t matrix_scan(void)
         nrf_debug_info(1);
       #endif
     }
+
+    #ifdef DEBUG
+    if (stats.count[0] == 0 && stats.count[1] == 0) {
+      nrf_debug_info(1);
+    }
+    #endif
 
 
   #ifdef DEBUG

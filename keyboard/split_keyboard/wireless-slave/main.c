@@ -11,7 +11,6 @@
 #include "../wireless/nrf.h"
 #include "../wireless/nRF24L01.h"
 #include "../wireless/crypto.h"
-#include "../split-util.h"
 #include "./matrix.h"
 #include "./clock.h"
 
@@ -41,7 +40,7 @@
 // WARN: this is value was measured for the current clock speeds and does
 // not control the given scan rate. It is used as a rough estimate of how
 // long a second is in terms of matrix scans.
-#define SCAN_RATE 130
+#define SCAN_RATE 300
 
 aes_ctx_t aes_ctx = { 0 };
 ecb_state_t ecb_state = { {0} };
@@ -78,7 +77,7 @@ void reset_hardware(void) {
   PORTC = 0x00;
   PORTD = 0x00;
 
-  spi_setup(true);  // use clk/2 for SCK
+  spi_setup();
   nrf_setup(&settings);
   matrix_init();
 }
@@ -171,8 +170,6 @@ void setup() {
   _delay_ms(100); // nrf takes about this long to start from no power
   reset_hardware();
 
-  /* crypto_init(&aes_state, &aes_ctx,  &settings); */
-
   crypto_init(&aes_ctx);
   ecb_init(&ecb_state, DEVICE_ID);
 
@@ -184,7 +181,11 @@ int main(void) {
   uint8_t nrf_status = 0;
   uint8_t inactive_time = 0;
   uint8_t unchanged_time = 0;
+#if SCAN_RATE <= 255
   uint8_t scan_rate_counter = 0;
+#else
+  uint16_t scan_rate_counter = 0;
+#endif
   uint8_t error_rate = 0;
 
   setup();

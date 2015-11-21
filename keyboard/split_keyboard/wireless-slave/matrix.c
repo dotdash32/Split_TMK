@@ -14,6 +14,9 @@ static void init_cols(void);
 static void unselect_rows(void);
 static void select_row(uint8_t row);
 
+const uint8_t col_pin_mask = 0b00111111;
+const uint8_t row_pin_mask = 0b00001111;
+
 void matrix_init(void)
 {
   // initialize row and col
@@ -55,32 +58,33 @@ matrix_row_t matrix_get_row(uint8_t row)
   return matrix[row];
 }
 
-// matrix sleep mode
+// Setup the matrix so it will trigger an interrupt when a pin changes
 void matrix_interrupt_mode(void) {
-  /* // set cols in the matrix to output high */
-  /* // set the reset to output low */
 #if DEVICE_ID==0
-  DDRB = 0xff;
-  DDRC = 0b11000000;
-  DDRD = 0xff;
-  PORTB = 0x00;
-  PORTC = 0b00111111;
-  PORTD = 0x00;
+  // cols input, pull-up
+  DDRC  &= ~col_pin_mask;
+  PORTC |= col_pin_mask;
 
+  // rows output, low
+  DDRD  |=  row_pin_mask;
+  PORTD &= ~row_pin_mask;
+
+  // cols interrupt, on pin change
   PCICR  =  (1<<PCIE1);
-  PCMSK1 = 0b00111111;
+  PCMSK1 = col_pin_mask;
   PCIFR  = 0x00;
-
 #elif DEVICE_ID==1
-  DDRB = 0xff;
-  DDRC = 0b11000000; // rows as input
-  DDRD = 0xff;
-  PORTB = 0x00;
-  PORTC = 0b00111111;
-  PORTD = 0x00;
+  // cols input, pull-up
+  DDRC  &= ~col_pin_mask;
+  PORTC |= col_pin_mask;
 
+  // rows output, low
+  DDRD  |=  row_pin_mask;
+  PORTD &= ~row_pin_mask;
+
+  // cols interrupt, on pin change
   PCICR  =  (1<<PCIE1);
-  PCMSK1 = 0b00111111;
+  PCMSK1 = col_pin_mask;
   PCIFR  = 0x00;
 #endif
 }
@@ -108,18 +112,18 @@ ISR(PCINT2_vect) {
  *   pin: C0  C1  C2  C3  C4  C5
  * right
  *   col: 0   1   2   3   4   5
- *   pin: C5  C4  C3  C2  C1  C0
+ *   pin: C0  C1  C2  C3  C4  C5
  */
   inline
 static void  init_cols(void)
 {
   // Input with pull-up(DDR:0, PORT:1)
 #if DEVICE_ID==0
-  DDRC  &= ~(0b00111111);
-  PORTC |=  (0b00111111);
+  DDRC  &= ~(col_pin_mask);
+  PORTC |=  (col_pin_mask);
 #elif DEVICE_ID==1
-  DDRC  &= ~(0b00111111);
-  PORTC |=  (0b00111111);
+  DDRC  &= ~(col_pin_mask);
+  PORTC |=  (col_pin_mask);
 #endif
 }
 
@@ -127,19 +131,9 @@ static void  init_cols(void)
 static matrix_row_t read_cols(void)
 {
 #if DEVICE_ID==0
-  return (PINC&(1<<0) ? 0 : (1<<0)) |
-         (PINC&(1<<1) ? 0 : (1<<1)) |
-         (PINC&(1<<2) ? 0 : (1<<2)) |
-         (PINC&(1<<3) ? 0 : (1<<3)) |
-         (PINC&(1<<4) ? 0 : (1<<4)) |
-         (PINC&(1<<5) ? 0 : (1<<5));
+  return ~PINC & col_pin_mask;
 #elif DEVICE_ID==1
-  return (PINC&(1<<0) ? 0 : (1<<5)) |
-         (PINC&(1<<1) ? 0 : (1<<4)) |
-         (PINC&(1<<2) ? 0 : (1<<3)) |
-         (PINC&(1<<3) ? 0 : (1<<2)) |
-         (PINC&(1<<4) ? 0 : (1<<1)) |
-         (PINC&(1<<5) ? 0 : (1<<0));
+  return ~PINC & col_pin_mask;
 #endif
 }
 
@@ -151,20 +145,20 @@ static matrix_row_t read_cols(void)
  *   row: 0  1  2  3
  *   pin: D0 D1 D2 D3
  */
-  inline
+inline
 static void unselect_rows(void)
 {
   // Hi-Z(DDR:0, PORT:0) to unselect
 #if DEVICE_ID==0
-  DDRD  &= ~0xf;
-  PORTD &= ~0xf;
+  DDRD  &= ~row_pin_mask;
+  PORTD &= ~row_pin_mask;
 #elif DEVICE_ID==1
-  DDRD  &= ~0xf;
-  PORTD &= ~0xf;
+  DDRD  &= ~row_pin_mask;
+  PORTD &= ~row_pin_mask;
 #endif
 }
 
-  inline
+inline
 static void select_row(uint8_t row)
 {
   // Output low(DDR:1, PORT:0) to select

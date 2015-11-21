@@ -1,5 +1,6 @@
 #include <string.h>
 #include <avr/eeprom.h>
+#include "../split-config.h"
 #include "crypto.h"
 
 // AES128-CBC refer to:
@@ -18,41 +19,41 @@ void crypto_init(aes_ctx_t *ctx) {
   aes128_init(key, ctx);
 }
 
-void cbc_init(cbc_state_t *state, aes_ctx_t *ctx) {
-#if DEVICE_ID==MASTER_DEVICE_ID
-  // do nothing, the master receives iv from slave
-#else
-  // AES-CBC should use an iv that is both unique and unpredictable.
-  // Here we use a counter and encryption to meet these requirements:
-  //   * counter => uniqueness
-  //   * encrypt(counter) => uniqueness + unpredictability
-  //
-  // The bitwise inverse of the counter is used in the other half to ensure
-  // uniqueness for both halves.
+/* void cbc_init(cbc_state_t *state, aes_ctx_t *ctx) { */
+/* #if DEVICE_ID==MASTER_DEVICE_ID */
+/*   // do nothing, the master receives iv from slave */
+/* #else */
+/*   // AES-CBC should use an iv that is both unique and unpredictable. */
+/*   // Here we use a counter and encryption to meet these requirements: */
+/*   //   * counter => uniqueness */
+/*   //   * encrypt(counter) => uniqueness + unpredictability */
+/*   // */
+/*   // The bitwise inverse of the counter is used in the other half to ensure */
+/*   // uniqueness for both halves. */
 
-  uint32_t nonce_counter = eeprom_read_dword(EECONFIG_NONCE_COUNTER);
-  nonce_counter++;
-  eeprom_update_dword(EECONFIG_NONCE_COUNTER, nonce_counter);
-  /* // use different nonce for left and right hands */
-  switch (DEVICE_ID) {
-    case 0: nonce_counter = nonce_counter; break;
-    case 1: nonce_counter = ~nonce_counter; break;
-    default: break;
-  }
-  for (int i = 0; i < AES_BUF_LEN/sizeof(uint32_t); i++) {
-    ((uint32_t*)state->iv)[i] = nonce_counter;
-  }
+/*   uint32_t nonce_counter = eeprom_read_dword(EECONFIG_NONCE_COUNTER); */
+/*   nonce_counter++; */
+/*   eeprom_update_dword(EECONFIG_NONCE_COUNTER, nonce_counter); */
+/*   /1* // use different nonce for left and right hands *1/ */
+/*   switch (DEVICE_ID) { */
+/*     case 0: nonce_counter = nonce_counter; break; */
+/*     case 1: nonce_counter = ~nonce_counter; break; */
+/*     default: break; */
+/*   } */
+/*   for (int i = 0; i < AES_BUF_LEN/sizeof(uint32_t); i++) { */
+/*     ((uint32_t*)state->iv)[i] = nonce_counter; */
+/*   } */
 
-  aes128_enc(state->iv, ctx);
-#endif
+/*   aes128_enc(state->iv, ctx); */
+/* #endif */
 
-}
+/* } */
 
 uint32_t* get_msg_id_addr(uint8_t device_id) {
   switch (device_id) {
     case 0: return EECONFIG_MESSAGE_ID0;
     case 1: return EECONFIG_MESSAGE_ID1;
-    default: return 0xffff;
+    default: return EECONFIG_MESSAGE_ID0;
   }
 }
 
@@ -111,6 +112,7 @@ uint8_t ecb_decrypt(ecb_state_t *state, aes_ctx_t *ctx, uint8_t *input) {
   /* } */
 
   memcpy(state, &packet, sizeof(ecb_state_t));
+  return 0;
 }
 
 void cbc_encrypt(cbc_state_t *state, aes_ctx_t *ctx) {

@@ -35,11 +35,13 @@ include $(ARDUINO_DIR)/Arduino.mk
 
 
 build-left: CPPFLAGS += -DCE=1
+build-left: CPPFLAGS += -DCSN=2
 build-left: clean
 build-left: DEVICE_ID=0
 build-left: all
 
-build-right: CPPFLAGS += -DCE=0
+build-right: CPPFLAGS += -DCE=1
+build-right: CPPFLAGS += -DCSN=2
 build-right: clean
 build-right: DEVICE_ID=1
 build-right: all
@@ -57,7 +59,7 @@ uno:
 set-fuses:
 	$(PROGRAM_CMD) \
 		-U lfuse:w:0x42:m \
-		-U hfuse:w:0xdf:m \
+		-U hfuse:w:0xd9:m \
 		-U efuse:w:0x06:m
 
 # program-lock:

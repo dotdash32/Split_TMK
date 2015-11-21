@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 #include "aes/aes.h"
-#include "../split-util.h"
 
 #define AES_KEY_LEN 16 // 128 bit
 #define AES_BUF_LEN 16

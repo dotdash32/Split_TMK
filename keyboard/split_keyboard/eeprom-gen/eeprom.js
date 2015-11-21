@@ -20,10 +20,15 @@ var EECONFIG_KEYMAP_SWAP_GRAVE_ESC            = (1<<5);
 var EECONFIG_KEYMAP_SWAP_BACKSLASH_BACKSPACE  = (1<<6);
 var EECONFIG_KEYMAP_NKRO                      = (1<<7);
 
-var EECONFIG_AES_KEY       =   0x0010;// 16 bytes
-var EECONFIG_NONCE         =   0x0020;// 4 byte
-var EECONFIG_RF_POWER      =   0x0024;// 1 byte
-var EECONFIG_RF_CHANNEL    =   0x0025;// 1 byte
+var EECONFIG_AES_KEY        = 0x0010; // 16 bytes
+
+var EECONFIG_RF_POWER       = 0x0020; // 1 byte
+var EECONFIG_RF_CHANNEL     = 0x0021; // 1 byte
+var EECONFIG_RF_DATA_RATE   = 0x0022; // 1 byte
+var EECONFIG_RF_ADDRESS_LEN = 0x0023; // 1 byte
+var EECONFIG_MESSAGE_ID0    = 0x0028; // 4  bytes
+var EECONFIG_MESSAGE_ID1    = 0x002C; // 4  bytes
+
 var EECONFIG_DEVICE_ADDR_0 =   0x0030;// 5  bytes
 var EECONFIG_DEVICE_ADDR_1 =   0x0035;// 5  bytes
 
@@ -72,11 +77,23 @@ function getBits(id) {
   return res;
 }
 
+function getRadio(name) {
+  var radioButtons = document.getElementsByName(name);
+  for (var i = 0, len = radioButtons.length; i < len; i++) {
+    if (radioButtons[i].checked) {
+      return radioButtons[i].value;
+    }
+  }
+  return res;
+}
+
 var data = {
   memory : [],
   key    : genRandomBytes(16),
   rf_channel : genRandomBytes(1)[0] & 0x7f,
   rf_power : 3,
+  rf_data_rate : 2,
+  rf_address_len : 3,
   addr0  : genRandomBytes(5),
   addr1  : genRandomBytes(5),
   keyConf : 0,
@@ -102,6 +119,8 @@ function generateHex() {
   copyRegion(data.memory, data.addr0,      EECONFIG_DEVICE_ADDR_0);
   copyRegion(data.memory, data.addr1,      EECONFIG_DEVICE_ADDR_1);
   data.memory[EECONFIG_RF_CHANNEL] = data.rf_channel;
+  data.memory[EECONFIG_RF_DATA_RATE] = data.rf_data_rate;
+  data.memory[EECONFIG_RF_ADDRESS_LEN] = data.rf_address_len;
   data.memory[EECONFIG_RF_POWER] = data.rf_power;
 
   var temp = new JVIntelHEX(data.memory.slice(), 16, 0x0000, true); temp.createRecords();
@@ -129,10 +148,11 @@ function updateSettings() {
   data.backlight = getField8("backlight");
   data.mouseaccel = getField8("mouseaccel");
   data.rf_power = getField8("rf_power", 0x03);
+  data.rf_data_rate = parseInt(getRadio("rf_data_rate"));
+  data.rf_address_len = parseInt(getRadio("rf_address_len"));
   data.debug = getBits("d");
   data.layer = getBits("l");
   data.keyConf = getBits("k");
-
 
   generateHex();
 }
