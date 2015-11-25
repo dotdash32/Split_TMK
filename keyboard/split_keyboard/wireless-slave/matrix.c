@@ -41,6 +41,7 @@ void matrix_scan_slow(matrix_scan_t *scan) {
   for (uint8_t i = 0; i < ROWS_PER_HAND; i++) {
     select_row(i);
     /* clock_delay_slow_us(30);  // without this wait read unstable value. */
+    asm volatile("nop");
     const uint8_t old_row_val = matrix[i]; // instead of delay
 
     cols = read_cols();

@@ -1,5 +1,5 @@
 #include "nrf.h"
-#include "split-config.h"
+#include "../split-config.h"
 #include "nRF24L01.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>

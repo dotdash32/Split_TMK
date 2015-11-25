@@ -1,76 +1,100 @@
-NO_CORE = yes
+# Target file name (without extension).
+TARGET = split_keyboard_slave
+
+# Directory common source filess exist
+TMK_DIR = ../../../tmk_core
+
+# Directory keyboard dependent files exist
+TARGET_DIR = .
+
+# project specific files
+SRC =	\
+	main.c \
+	matrix.c \
+	clock.c \
+	wireless/crypto.c \
+	wireless/nrf.c \
+	wireless/aes/aes_dec-asm.S \
+	wireless/aes/aes_enc-asm.S \
+	wireless/aes/aes_invsbox-asm.S \
+	wireless/aes/aes_keyschedule-asm.S \
+	wireless/aes/aes_sbox-asm.S \
+
+# CONFIG_H = config.h
+
+# MCU name
 MCU = atmega328p
 
-# AVRDUDE_OPTS += -c arduino
+ifndef COM_PORT
+    COM_PORT=/dev/ttyACM0
+endif
+AVRDUDE_CMD=avrdude -p $(MCU) -c avrisp -b 19200 -P $(COM_PORT)
+# PROGRAM_CMD=$(AVRDUDE_CMD)
 
-# AVRDUDE_ARD_BAUDRATE = 57600
-# AVRDUDE_ARD_PROGRAMMER = arduino
+# Oscillator frequency.
+F_OSC = 8000000
+# Processor frequency.
+F_CPU = 2000000
 
-# ISP_PROG   = avrisp
-# AVRDUDE_ISP_BAUDRATE = 19200
+# Optimisation level
+OPT = 3
 
-# F_OSC = 16000000L # either 8 or 16 MHz
-F_OSC = 8000000L # either 8 or 16 MHz
-F_CPU = 2000000L # speed we run at when doing work
-
-CFLAGS += \
-	  -std=gnu99 \
-
-OPTIMIZATION_LEVEL = 3
-
-CPPFLAGS += -DMONITOR_BAUDRATE=$(MONITOR_BAUDRATE) \
-	    -DUSE_AUTO_ACK=1 \
-	    -DDEVICE_ID=$(DEVICE_ID) \
-	    -DF_OSC=$(F_OSC)
+OPT_DEFS += -DUSE_AUTO_ACK=1
+OPT_DEFS += -DF_OSC=$(F_OSC)UL
 
 EEPROM_FILE = ../eeprom-split.eep
-COM_PORT = /dev/ttyACM0
-PROGRAM_CMD = avrdude -c $(ISP_PROG) -p atmega328p -P $(COM_PORT) -b $(AVRDUDE_ISP_BAUDRATE)
 
+# Search Path
+VPATH += $(TARGET_DIR)
+VPATH += $(TARGET_DIR)/..
 
-### or on Linux: (remove the one you don't want)
-ARDUINO_DIR       = /usr/share/arduino
+include $(TMK_DIR)/rules.mk
 
-include $(ARDUINO_DIR)/Arduino.mk
+dependencies:
+	# Create object files directory
+	$(shell mkdir $(OBJDIR) 2>/dev/null)
+	# Include the dependency files.
+	-include $(shell mkdir .dep 2>/dev/null) $(wildcard .dep/*)
 
-
-build-left: CPPFLAGS += -DCE=1
-build-left: CPPFLAGS += -DCSN=2
 build-left: clean
-build-left: DEVICE_ID=0
-build-left: all
+build-left: dependencies
+build-left: OPT_DEFS += -DCE=1
+build-left: OPT_DEFS += -DCSN=2
+build-left: OPT_DEFS += -DDEVICE_ID=0
+build-left: hex
 
-build-right: CPPFLAGS += -DCE=1
-build-right: CPPFLAGS += -DCSN=2
 build-right: clean
-build-right: DEVICE_ID=1
-build-right: all
+build-right: dependencies
+build-right: OPT_DEFS += -DCE=1
+build-right: OPT_DEFS += -DCSN=2
+build-right: OPT_DEFS += -DDEVICE_ID=1
+build-right: hex
 
 program-left: build-left
-program-left: program
+program-left: program-slave
+program-left: lock
 
 program-right: build-right
-program-right: program
+program-right: program-slave
+program-right: lock
 
 uno:
 	avrdude -c arduino -p atmega328p -P $(COM_PORT) \
 		-U flash:w:build-uno/wireless-slave.hex:i
 
-set-fuses:
-	$(PROGRAM_CMD) \
+fuses:
+	$(AVRDUDE_CMD) \
 		-U lfuse:w:0x42:m \
 		-U hfuse:w:0xd9:m \
 		-U efuse:w:0x06:m
 
-# program-lock:
-# 	avrdude -c $(ISP_PROG) -p atmega328p -P $(COM_PORT) \
-# 		-b $(AVRDUDE_ISP_BAUDRATE) \
-# 		-U flash:w:build-uno/wireless-slave.hex:i
+lock:
+	# disable reading and writing to flash and eeprom
+	$(AVRDUDE_CMD) \
+		-U lock:w:0x3c:m
 
-# program-left: program DEVICE_NUMBER=0
-# program-right: program DEVICE_NUMBER=1
-
-program: all
-	$(PROGRAM_CMD) -U flash:w:build-uno/wireless-slave.hex:i
+program-slave:
+	$(AVRDUDE_CMD) -U flash:w:$(TARGET).hex:i
 	sleep 1
-	$(PROGRAM_CMD) -U eeprom:w:$(EEPROM_FILE):i
+	$(AVRDUDE_CMD) -U eeprom:w:$(EEPROM_FILE):i
+

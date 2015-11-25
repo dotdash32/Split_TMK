@@ -125,44 +125,44 @@ void timer2_init(void) {
   TIMSK2 = (1<<TOIE2);
 }
 
-void slave_disconnect_pause(void) {
-  /* 255/(8000000 / 128 / 1024) = 4.17792000 */
-  /* 255/(8000000 / 128 / 512) = 2.08896000 */
-sleep_again:
-  set_sleep_mode(SLEEP_MODE_PWR_SAVE);
-  cli();
-  sleep_enable();
+/* void slave_disconnect_pause(void) { */
+/*   /1* 255/(8000000 / 128 / 1024) = 4.17792000 *1/ */
+/*   /1* 255/(8000000 / 128 / 512) = 2.08896000 *1/ */
+/* sleep_again: */
+/*   set_sleep_mode(SLEEP_MODE_PWR_SAVE); */
+/*   cli(); */
+/*   sleep_enable(); */
 
-  // use slow clock for longer sleep
-  clock_slow();
+/*   // use slow clock for longer sleep */
+/*   clock_slow(); */
 
-  power_timer2_enable();
-  timer2_init();
-  asm("nop");
-  asm("nop");
-  asm("nop");
-  asm("nop");
+/*   power_timer2_enable(); */
+/*   timer2_init(); */
+/*   asm volatile("nop"); */
+/*   asm volatile("nop"); */
+/*   asm volatile("nop"); */
+/*   asm volatile("nop"); */
 
-  sei();
-  sleep_cpu();
-  cli();
+/*   sei(); */
+/*   sleep_cpu(); */
+/*   cli(); */
 
-  /* if (timer2_counter < 10) { */
-  /*   goto sleep_again; */
-  /* } */
+/*   /1* if (timer2_counter < 10) { *1/ */
+/*   /1*   goto sleep_again; *1/ */
+/*   /1* } *1/ */
 
 
-  power_timer2_disable();
-  TIMSK2 = 0;
+/*   power_timer2_disable(); */
+/*   TIMSK2 = 0; */
 
-  sei();
-}
+/*   sei(); */
+/* } */
 
 void slave_disable(void) {
   enable_hardware();
 }
 
-void setup() {
+void setup(void) {
   clock_fast();
 
   disable_unused_hardware();
@@ -186,14 +186,9 @@ int main(void) {
 #else
   uint16_t scan_rate_counter = 0;
 #endif
-  uint8_t error_rate = 0;
+  /* uint8_t error_rate = 0; */
 
   setup();
-  // send our iv to the master
-  /* nrf_status = nrf_load_tx_fifo(aes_state.iv, RF_BUFFER_LEN); */
-  /* nrf_send_one(); */
-  /* nrf_status = nrf_load_tx_fifo(aes_state.iv, RF_BUFFER_LEN); */
-  /* nrf_send_one(); */
   clock_slow();
 
   while(1) {

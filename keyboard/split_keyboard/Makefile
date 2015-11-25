@@ -67,6 +67,8 @@ CONFIG_H = config.h
 # MCU name
 MCU = atmega32u4
 
+OPT = s
+
 ifndef COM_PORT
     COM_PORT=/dev/ttyACM0
 endif
